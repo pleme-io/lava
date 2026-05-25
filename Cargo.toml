@@ -1,0 +1,32 @@
+[package]
+authors = ["pleme-io"]
+description = "lava — operator CLI for the lava suite. Renders, validates, and lists typed .tlisp infrastructure architectures. Wraps magma-lava + lava-architectures so operators get one binary that loads, schema-gates, and synthesizes .tlisp source to magma-compatible terraform.json end-to-end."
+edition = "2024"
+license = "MIT"
+name = "lava"
+readme = "README.md"
+repository = "https://github.com/pleme-io/lava"
+version = "0.1.0"
+
+[lib]
+name = "lava"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lava"
+path = "src/main.rs"
+
+[lints.clippy]
+pedantic = "warn"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+indexmap = { version = "2", features = ["serde"] }
+thiserror = "2"
+magma-lava = { git = "https://github.com/pleme-io/magma-lava", branch = "main" }
+lava-architectures = { git = "https://github.com/pleme-io/lava-architectures", branch = "main" }
+lava-eval = { git = "https://github.com/pleme-io/lava-eval", branch = "main" }
+lava-schema = { git = "https://github.com/pleme-io/lava-schema", branch = "main" }

@@ -1,0 +1,331 @@
+//! Typed argv parsing + subcommand dispatch for the `lava` CLI.
+//!
+//! Keeps `main.rs` minimal; tests call `run_with_writer` directly with
+//! captured stdout for fixtures.
+
+use clap::{Parser, Subcommand, ValueEnum};
+use indexmap::IndexMap;
+use lava_architectures::{interface_for, BUNDLED_ARCHITECTURES};
+use magma_lava::{synthesize, LavaPlanArgs};
+use std::io::Write;
+
+#[derive(Parser, Debug)]
+#[command(
+    name = "lava",
+    version,
+    about = "lava — operator CLI for the lava IaC suite (.tlisp → magma terraform.json)"
+)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Render a .tlisp file → terraform.json (optionally schema-gated).
+    Plan(PlanArgs),
+    /// Render a bundled architecture by name → terraform.json.
+    Render(RenderArgs),
+    /// Run the schema gate against the supplied bindings + .tlisp,
+    /// without rendering. Exits 0 if the bag validates, non-zero on
+    /// typed mismatch.
+    Validate(ValidateArgs),
+    /// Catalog inspection.
+    Ls {
+        #[command(subcommand)]
+        what: LsTarget,
+    },
+    /// Show the typed Interface registered for a bundled architecture.
+    Show {
+        #[command(subcommand)]
+        what: ShowTarget,
+    },
+}
+
+#[derive(Parser, Debug)]
+pub struct PlanArgs {
+    /// Path to the .tlisp source file.
+    pub path: std::path::PathBuf,
+    /// Optional schema gate (bundled interface name).
+    #[arg(long, value_name = "INTERFACE")]
+    pub gate: Option<String>,
+    /// `key=value` bindings (repeatable).
+    #[arg(long = "binding", value_name = "KEY=VALUE")]
+    pub bindings: Vec<String>,
+    /// `key=v1,v2,...` list bindings (repeatable).
+    #[arg(long = "binding-list", value_name = "KEY=VAL,VAL,...")]
+    pub list_bindings: Vec<String>,
+    /// Write the rendered output to a file (otherwise stdout).
+    #[arg(long, value_name = "FILE")]
+    pub out: Option<std::path::PathBuf>,
+    /// Output format.
+    #[arg(long, default_value_t = OutFormat::Json)]
+    pub format: OutFormat,
+}
+
+#[derive(Parser, Debug)]
+pub struct RenderArgs {
+    /// Architecture name (must appear in `lava ls architectures`).
+    pub name: String,
+    #[arg(long = "binding", value_name = "KEY=VALUE")]
+    pub bindings: Vec<String>,
+    #[arg(long = "binding-list", value_name = "KEY=VAL,VAL,...")]
+    pub list_bindings: Vec<String>,
+    #[arg(long, value_name = "FILE")]
+    pub out: Option<std::path::PathBuf>,
+    #[arg(long, default_value_t = OutFormat::Json)]
+    pub format: OutFormat,
+}
+
+#[derive(Parser, Debug)]
+pub struct ValidateArgs {
+    pub path: std::path::PathBuf,
+    #[arg(long, value_name = "INTERFACE")]
+    pub gate: String,
+    #[arg(long = "binding", value_name = "KEY=VALUE")]
+    pub bindings: Vec<String>,
+    #[arg(long = "binding-list", value_name = "KEY=VAL,VAL,...")]
+    pub list_bindings: Vec<String>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum LsTarget {
+    /// List every bundled architecture name + expected resource count.
+    Architectures,
+    /// List every typed interface (one per bundled architecture).
+    Interfaces,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ShowTarget {
+    /// Print the typed Interface for one architecture (JSON).
+    Interface { name: String },
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum OutFormat {
+    Json,
+    Yaml,
+}
+
+impl std::fmt::Display for OutFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Json => f.write_str("json"),
+            Self::Yaml => f.write_str("yaml"),
+        }
+    }
+}
+
+/// Entry point — parses argv, dispatches, returns process exit code.
+#[must_use]
+pub fn run<I>(args: I) -> i32
+where
+    I: IntoIterator,
+    I::Item: Into<std::ffi::OsString> + Clone,
+{
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+    let stderr = std::io::stderr();
+    let mut err = stderr.lock();
+    run_with_writers(args, &mut out, &mut err)
+}
+
+/// Same as [`run`] but writes to the supplied writers — used by the
+/// integration tests to capture output.
+pub fn run_with_writers<I>(args: I, out: &mut dyn Write, err: &mut dyn Write) -> i32
+where
+    I: IntoIterator,
+    I::Item: Into<std::ffi::OsString> + Clone,
+{
+    let cli = match Cli::try_parse_from(args) {
+        Ok(c) => c,
+        Err(e) => {
+            // Clap exit codes: 0 for --help / --version, 2 otherwise.
+            let _ = writeln!(err, "{e}");
+            return if e.exit_code() == 0 { 0 } else { 2 };
+        }
+    };
+    match cli.command {
+        Command::Plan(args) => cmd_plan(&args, out, err),
+        Command::Render(args) => cmd_render(&args, out, err),
+        Command::Validate(args) => cmd_validate(&args, out, err),
+        Command::Ls { what } => cmd_ls(&what, out, err),
+        Command::Show { what } => cmd_show(&what, out, err),
+    }
+}
+
+fn cmd_plan(args: &PlanArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let bindings = parse_bindings(&args.bindings, &args.list_bindings);
+    let mut plan_args = LavaPlanArgs {
+        path: args.path.clone(),
+        bindings,
+        gate_with: args.gate.clone(),
+        runtime_kind: None,
+    };
+    plan_args.gate_with.clone_from(&args.gate);
+    match synthesize(&plan_args) {
+        Ok(plan) => emit(&plan.terraform_json, args.format, args.out.as_ref(), out, err),
+        Err(e) => {
+            let _ = writeln!(err, "lava plan failed: {e}");
+            1
+        }
+    }
+}
+
+fn cmd_render(args: &RenderArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    // Render = plan against the bundled architecture's source path.
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(|p| p.join("lava-architectures").join("architectures").join(format!("{}.tlisp", args.name)))
+        .unwrap_or_else(|| std::path::PathBuf::from(format!("{}.tlisp", args.name)));
+    if !path.exists() {
+        let _ = writeln!(
+            err,
+            "lava render: bundled architecture `{}` not found at {}",
+            args.name,
+            path.display()
+        );
+        return 1;
+    }
+    let plan_args = LavaPlanArgs {
+        path,
+        bindings: parse_bindings(&args.bindings, &args.list_bindings),
+        gate_with: None,
+        runtime_kind: None,
+    };
+    match synthesize(&plan_args) {
+        Ok(plan) => emit(&plan.terraform_json, args.format, args.out.as_ref(), out, err),
+        Err(e) => {
+            let _ = writeln!(err, "lava render failed: {e}");
+            1
+        }
+    }
+}
+
+fn cmd_validate(args: &ValidateArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let plan_args = LavaPlanArgs {
+        path: args.path.clone(),
+        bindings: parse_bindings(&args.bindings, &args.list_bindings),
+        gate_with: Some(args.gate.clone()),
+        runtime_kind: None,
+    };
+    // synthesize runs the schema gate as a side-effect of evaluation;
+    // we don't need to write the JSON, just report green.
+    match synthesize(&plan_args) {
+        Ok(plan) => {
+            let _ = writeln!(
+                out,
+                "validate ok — {} resources, runtime={}",
+                count_resources(&plan.terraform_json),
+                plan.runtime_kind
+            );
+            0
+        }
+        Err(e) => {
+            let _ = writeln!(err, "validate failed: {e}");
+            1
+        }
+    }
+}
+
+fn cmd_ls(target: &LsTarget, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    match target {
+        LsTarget::Architectures => {
+            for (name, min_resources) in BUNDLED_ARCHITECTURES {
+                let _ = writeln!(out, "{name}\t(>= {min_resources} resources)");
+            }
+            0
+        }
+        LsTarget::Interfaces => {
+            for (name, _) in BUNDLED_ARCHITECTURES {
+                if let Some(iface) = interface_for(name) {
+                    let _ = writeln!(
+                        out,
+                        "{name}\t{}",
+                        iface.doc.as_deref().unwrap_or("(no doc)")
+                    );
+                } else {
+                    let _ = writeln!(err, "{name}\t(no interface registered)");
+                }
+            }
+            0
+        }
+    }
+}
+
+fn cmd_show(target: &ShowTarget, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    match target {
+        ShowTarget::Interface { name } => match interface_for(name) {
+            Some(iface) => {
+                let json = serde_json::to_string_pretty(&iface).unwrap_or_default();
+                let _ = writeln!(out, "{json}");
+                0
+            }
+            None => {
+                let _ = writeln!(err, "lava show interface: no interface registered for `{name}`");
+                1
+            }
+        },
+    }
+}
+
+fn emit(
+    value: &serde_json::Value,
+    format: OutFormat,
+    target: Option<&std::path::PathBuf>,
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> i32 {
+    let serialized = match format {
+        OutFormat::Json => serde_json::to_string_pretty(value).unwrap_or_default(),
+        OutFormat::Yaml => serde_yaml::to_string(value).unwrap_or_default(),
+    };
+    match target {
+        Some(path) => match std::fs::write(path, &serialized) {
+            Ok(()) => {
+                let _ = writeln!(out, "wrote {} bytes → {}", serialized.len(), path.display());
+                0
+            }
+            Err(e) => {
+                let _ = writeln!(err, "lava write failed: {e}");
+                1
+            }
+        },
+        None => {
+            let _ = out.write_all(serialized.as_bytes());
+            let _ = out.write_all(b"\n");
+            0
+        }
+    }
+}
+
+fn parse_bindings(
+    scalars: &[String],
+    lists: &[String],
+) -> IndexMap<String, magma_lava::Binding> {
+    let mut out: IndexMap<String, magma_lava::Binding> = IndexMap::new();
+    for kv in scalars {
+        if let Some((k, v)) = kv.split_once('=') {
+            out.insert(k.to_string(), magma_lava::Binding::Scalar(v.to_string()));
+        }
+    }
+    for kv in lists {
+        if let Some((k, v)) = kv.split_once('=') {
+            let items: Vec<String> = v.split(',').map(std::string::ToString::to_string).collect();
+            out.insert(k.to_string(), magma_lava::Binding::List(items));
+        }
+    }
+    out
+}
+
+fn count_resources(json: &serde_json::Value) -> usize {
+    let Some(by_type) = json.get("resource").and_then(serde_json::Value::as_object) else {
+        return 0;
+    };
+    by_type
+        .values()
+        .filter_map(serde_json::Value::as_object)
+        .map(serde_json::Map::len)
+        .sum()
+}
