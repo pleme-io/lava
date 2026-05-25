@@ -463,6 +463,74 @@ fn pack_refuses_to_overwrite_unless_force() {
 }
 
 #[test]
+fn pack_caixa_format_emits_single_dot_caixa_lisp_file() {
+    let dir = tmpdir();
+    let tlisp = dir.join("vpc.tlisp");
+    let body = "(deflava-architecture demo :inputs () :resources ((aws-vpc \"main\" :cidr-block \"10.0.0.0/16\")))\n";
+    std::fs::write(&tlisp, body).unwrap();
+    let out_dir = dir.join("caixa-out");
+    let (code, _stdout, _err) = run(&[
+        "pack",
+        tlisp.to_str().unwrap(),
+        "--out",
+        out_dir.to_str().unwrap(),
+        "--format",
+        "caixa",
+        "--crate-name",
+        "caixa-demo-vpc",
+    ]);
+    assert_eq!(code, 0);
+    let caixa = out_dir.join("caixa-demo-vpc.caixa.lisp");
+    assert!(caixa.exists(), "caixa file not written");
+    let body_out = std::fs::read_to_string(&caixa).unwrap();
+    assert!(body_out.contains("(defcaixa"));
+    assert!(body_out.contains(":kind lava-architecture"));
+    assert!(body_out.contains(":name \"caixa-demo-vpc\""));
+    assert!(body_out.contains(":files"));
+    assert!(body_out.contains("src/vpc.tlisp"));
+    // No Rust scaffold files for caixa format.
+    assert!(!out_dir.join("Cargo.toml").exists());
+    assert!(!out_dir.join("src/lib.rs").exists());
+}
+
+#[test]
+fn pack_caixa_refuses_to_overwrite_unless_force() {
+    let dir = tmpdir();
+    let tlisp = dir.join("x.tlisp");
+    std::fs::write(&tlisp, "(deflava-interface x :inputs () :outputs ())\n").unwrap();
+    let out_dir = dir.join("out");
+    let (c1, _, _) = run(&[
+        "pack",
+        tlisp.to_str().unwrap(),
+        "--out",
+        out_dir.to_str().unwrap(),
+        "--format",
+        "caixa",
+    ]);
+    assert_eq!(c1, 0);
+    let (c2, _, err) = run(&[
+        "pack",
+        tlisp.to_str().unwrap(),
+        "--out",
+        out_dir.to_str().unwrap(),
+        "--format",
+        "caixa",
+    ]);
+    assert_ne!(c2, 0);
+    assert!(err.contains("already exists"));
+    let (c3, _, _) = run(&[
+        "pack",
+        tlisp.to_str().unwrap(),
+        "--out",
+        out_dir.to_str().unwrap(),
+        "--format",
+        "caixa",
+        "--force",
+    ]);
+    assert_eq!(c3, 0);
+}
+
+#[test]
 fn pack_custom_crate_name_lands_in_cargo_toml() {
     let dir = tmpdir();
     let tlisp = dir.join("src.tlisp");
