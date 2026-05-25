@@ -231,6 +231,33 @@ fn show_resources_for_unknown_architecture_exits_nonzero() {
 }
 
 #[test]
+fn graph_dot_for_bundled_architecture_emits_directed_graph() {
+    let (code, out, _err) = run(&["graph", "aws-vpc-network"]);
+    assert_eq!(code, 0);
+    assert!(out.contains("digraph lava"));
+    assert!(out.contains("aws_vpc.main-vpc"));
+    assert!(out.contains("aws_internet_gateway.main-igw"));
+    // Edge from IGW → VPC (IGW depends on the VPC via vpc_id ref).
+    assert!(out.contains("\"aws_internet_gateway.main-igw\" -> \"aws_vpc.main-vpc\""));
+}
+
+#[test]
+fn graph_mermaid_for_bundled_architecture_emits_flowchart() {
+    let (code, out, _err) = run(&["graph", "aws-vpc-network", "--format", "mermaid"]);
+    assert_eq!(code, 0);
+    assert!(out.contains("flowchart LR"));
+    assert!(out.contains("aws_internet_gateway_main_igw"));
+    assert!(out.contains("-->"));
+}
+
+#[test]
+fn graph_unknown_target_exits_nonzero() {
+    let (code, _out, err) = run(&["graph", "no-such-thing"]);
+    assert_ne!(code, 0);
+    assert!(err.contains("not found"));
+}
+
+#[test]
 fn no_args_emits_help_with_nonzero_exit() {
     let (code, _out, err) = run(&[]);
     assert_ne!(code, 0);

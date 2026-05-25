@@ -40,6 +40,39 @@ pub enum Command {
         #[command(subcommand)]
         what: ShowTarget,
     },
+    /// Emit a dependency graph (DOT or Mermaid) for the architecture.
+    Graph(GraphArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct GraphArgs {
+    /// Path to a .tlisp file OR a bundled architecture name.
+    pub target: String,
+    #[arg(long = "binding", value_name = "KEY=VALUE")]
+    pub bindings: Vec<String>,
+    #[arg(long = "binding-list", value_name = "KEY=VAL,VAL,...")]
+    pub list_bindings: Vec<String>,
+    #[arg(long, default_value_t = GraphFormat::Dot)]
+    pub format: GraphFormat,
+    #[arg(long, value_name = "FILE")]
+    pub out: Option<std::path::PathBuf>,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum GraphFormat {
+    /// Graphviz DOT — `dot -Tpng …` or `xdot`.
+    Dot,
+    /// Mermaid flowchart — drops into markdown.
+    Mermaid,
+}
+
+impl std::fmt::Display for GraphFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Dot => f.write_str("dot"),
+            Self::Mermaid => f.write_str("mermaid"),
+        }
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -171,6 +204,212 @@ where
         Command::Validate(args) => cmd_validate(&args, out, err),
         Command::Ls { what } => cmd_ls(&what, out, err),
         Command::Show { what } => cmd_show(&what, out, err),
+        Command::Graph(args) => cmd_graph(&args, out, err),
+    }
+}
+
+fn cmd_graph(args: &GraphArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    // `target` resolves either to a bundled architecture name or to a
+    // .tlisp file path on disk. Try bundled first; fall back to path.
+    let path = {
+        let bundled = bundled_source_path(&args.target);
+        if bundled.exists() {
+            bundled
+        } else {
+            std::path::PathBuf::from(&args.target)
+        }
+    };
+    if !path.exists() {
+        let _ = writeln!(
+            err,
+            "lava graph: target `{}` not found (tried bundled and direct path)",
+            args.target
+        );
+        return 1;
+    }
+    let plan_args = LavaPlanArgs {
+        path,
+        bindings: parse_bindings(&args.bindings, &args.list_bindings),
+        gate_with: None,
+        runtime_kind: None,
+    };
+    let plan = match synthesize(&plan_args) {
+        Ok(p) => p,
+        Err(e) => {
+            let _ = writeln!(err, "lava graph render failed: {e}");
+            return 1;
+        }
+    };
+    let serialized = match args.format {
+        GraphFormat::Dot => render_dot_graph(&plan.architecture),
+        GraphFormat::Mermaid => render_mermaid_graph(&plan.architecture),
+    };
+    match &args.out {
+        Some(path) => match std::fs::write(path, &serialized) {
+            Ok(()) => {
+                let _ = writeln!(out, "wrote {} bytes → {}", serialized.len(), path.display());
+                0
+            }
+            Err(e) => {
+                let _ = writeln!(err, "lava graph write failed: {e}");
+                1
+            }
+        },
+        None => {
+            let _ = out.write_all(serialized.as_bytes());
+            let _ = out.write_all(b"\n");
+            0
+        }
+    }
+}
+
+// ── Typed graph IR ──────────────────────────────────────────────────
+//
+// Per ★★ TYPED EMISSION: we don't format!() DOT / Mermaid syntax.
+// Build a typed Graph value, then route it through one of two
+// Display impls (DotGraph / MermaidGraph). Adding a new graph
+// format = one more wrapper + one more Display impl, never any
+// scattered format!() calls.
+
+#[derive(Debug, Clone)]
+struct GraphNode {
+    type_id: String,
+    name: String,
+}
+
+#[derive(Debug, Clone)]
+struct GraphEdge {
+    from: GraphNode,
+    to: GraphNode,
+}
+
+#[derive(Debug, Default, Clone)]
+struct Graph {
+    nodes: Vec<GraphNode>,
+    edges: Vec<GraphEdge>,
+}
+
+impl Graph {
+    fn from_architecture(arch: &lava_architectures::Architecture) -> Self {
+        let mut g = Self::default();
+        for r in &arch.resources {
+            let from = GraphNode {
+                type_id: r.type_id.clone(),
+                name: r.name.clone(),
+            };
+            g.nodes.push(from.clone());
+            for (_, v) in &r.attributes {
+                for dep in collect_refs(v) {
+                    g.edges.push(GraphEdge {
+                        from: from.clone(),
+                        to: GraphNode {
+                            type_id: dep.type_id,
+                            name: dep.name,
+                        },
+                    });
+                }
+            }
+        }
+        g
+    }
+}
+
+struct DotGraph<'a>(&'a Graph);
+struct MermaidGraph<'a>(&'a Graph);
+
+impl std::fmt::Display for DotGraph<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "digraph lava {{")?;
+        writeln!(f, "  rankdir=LR;")?;
+        writeln!(f, "  node [shape=box, style=rounded, fontname=\"monospace\"];")?;
+        for n in &self.0.nodes {
+            writeln!(f, "  \"{}.{}\";", n.type_id, n.name)?;
+        }
+        for e in &self.0.edges {
+            writeln!(
+                f,
+                "  \"{}.{}\" -> \"{}.{}\";",
+                e.from.type_id, e.from.name, e.to.type_id, e.to.name
+            )?;
+        }
+        writeln!(f, "}}")
+    }
+}
+
+impl std::fmt::Display for MermaidGraph<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "flowchart LR")?;
+        // Collect uniques via BTreeSet for deterministic order.
+        let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for n in self.0.nodes.iter().chain(self.0.edges.iter().flat_map(|e| {
+            std::iter::once(&e.from).chain(std::iter::once(&e.to))
+        })) {
+            let id = mermaid_id(&n.type_id, &n.name);
+            if seen.insert(id.clone()) {
+                writeln!(f, "  {id}[\"{}.{}\"]", n.type_id, n.name)?;
+            }
+        }
+        for e in &self.0.edges {
+            writeln!(
+                f,
+                "  {} --> {}",
+                mermaid_id(&e.from.type_id, &e.from.name),
+                mermaid_id(&e.to.type_id, &e.to.name)
+            )?;
+        }
+        Ok(())
+    }
+}
+
+fn mermaid_id(type_id: &str, name: &str) -> String {
+    let mut out = String::with_capacity(type_id.len() + 1 + name.len());
+    for c in type_id.chars().chain(std::iter::once('_')).chain(name.chars()) {
+        if c.is_ascii_alphanumeric() {
+            out.push(c);
+        } else {
+            out.push('_');
+        }
+    }
+    out
+}
+
+fn render_dot_graph(arch: &lava_architectures::Architecture) -> String {
+    let g = Graph::from_architecture(arch);
+    DotGraph(&g).to_string()
+}
+
+fn render_mermaid_graph(arch: &lava_architectures::Architecture) -> String {
+    let g = Graph::from_architecture(arch);
+    MermaidGraph(&g).to_string()
+}
+
+fn collect_refs(v: &lava_architectures::Value) -> Vec<lava_architectures::ResourceRef> {
+    let mut out = Vec::new();
+    walk_refs(v, &mut out);
+    out
+}
+
+fn walk_refs(v: &lava_architectures::Value, out: &mut Vec<lava_architectures::ResourceRef>) {
+    use lava_architectures::Value;
+    match v {
+        Value::Ref(r) => out.push(r.clone()),
+        Value::Json(json) => walk_json(json, out),
+    }
+}
+
+fn walk_json(v: &serde_json::Value, out: &mut Vec<lava_architectures::ResourceRef>) {
+    match v {
+        serde_json::Value::Array(items) => {
+            for item in items {
+                walk_json(item, out);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for (_, val) in map {
+                walk_json(val, out);
+            }
+        }
+        _ => {}
     }
 }
 
