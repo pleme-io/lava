@@ -440,7 +440,7 @@ rec {
       };
       "lava" = rec {
         crateName = "lava";
-        version = "0.1.2";
+        version = "0.1.3";
         edition = "2024";
         crateBin = [
           {
@@ -502,7 +502,9 @@ rec {
             packageId = "thiserror";
           }
         ];
-
+        features = {
+        };
+        resolvedDefaultFeatures = [ "default" "embedded-magma" ];
       };
       "lava-arch" = rec {
         crateName = "lava-arch";
@@ -546,13 +548,13 @@ rec {
       };
       "lava-architectures" = rec {
         crateName = "lava-architectures";
-        version = "0.1.7";
+        version = "0.1.8";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/lava-architectures";
-          rev = "a43805172de58a0dce95b7e0c6e416d010b06b4b";
-          sha256 = "050c7sifbpkvppf3xibl5z455gx25l9hv8asqlhwk7kcrzfrvrb0";
+          rev = "cf33a209134ad3df04d29825e23d10f2b4b81c9f";
+          sha256 = "13a5j2bw4nr0m5llbqyqrq0vks3f73f9v3m8q6z98ywq9ni5q8nd";
         };
         libName = "lava_architectures";
         authors = [
@@ -814,13 +816,13 @@ rec {
       };
       "lava-test" = rec {
         crateName = "lava-test";
-        version = "0.1.0";
+        version = "0.1.1";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/lava-test";
-          rev = "cbedb53c0664a1441c78872e2d4fefaa5228a4f9";
-          sha256 = "1kqz8rw4isb0z9ijjcv336rz7cg04vhxrfwkind748hnkx3kdgxz";
+          rev = "4768381a91dd1c362ad2c293d8227adc36047ab9";
+          sha256 = "0nc7m1gdlbpfy15k9b2iwxlwj8gl99jqvklhbhq94fppwd8v578h";
         };
         libName = "lava_test";
         authors = [
@@ -885,13 +887,13 @@ rec {
       };
       "magma-lava" = rec {
         crateName = "magma-lava";
-        version = "0.1.0";
+        version = "0.1.1";
         edition = "2024";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/pleme-io/magma-lava";
-          rev = "2ee1cc7780490ccd4f1d716f159e1eb33d99030d";
-          sha256 = "12f9kfygnlycdarqbisw3kbflcbdxqsfss4y5pmpds9bslvrphyr";
+          rev = "f7bfefe8daf532bf8d69c741fad4f0312b73b9b1";
+          sha256 = "0zy50n24piiis7jpp5gn9jljj49gp3959hhyin9v33klnw2nn246";
         };
         libName = "magma_lava";
         authors = [
