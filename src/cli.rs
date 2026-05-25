@@ -52,6 +52,35 @@ pub enum Command {
     PlanEngine(EngineArgs),
     /// Scaffold a new typed component (.tlisp source) from a template.
     New(NewArgs),
+    /// Wrap a .tlisp primitive in a redistributable Rust crate
+    /// (cargo + auto-release + workflow shims). Exports the source as
+    /// `pub const SOURCE: &str` so consumers `use my_crate::SOURCE;`
+    /// and pipe it straight into lava-eval.
+    Pack(PackArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct PackArgs {
+    /// Path to the .tlisp source file to package.
+    pub path: std::path::PathBuf,
+    /// Output directory for the generated crate. Created if missing.
+    #[arg(long, value_name = "DIR")]
+    pub out: std::path::PathBuf,
+    /// Crate name; defaults to `lava-pack-<file-stem>`.
+    #[arg(long, value_name = "NAME")]
+    pub crate_name: Option<String>,
+    /// Crate version. Default: 0.1.0.
+    #[arg(long, default_value = "0.1.0")]
+    pub version: String,
+    /// Crate description.
+    #[arg(long)]
+    pub description: Option<String>,
+    /// Author. Default: "pleme-io".
+    #[arg(long, default_value = "pleme-io")]
+    pub authors: String,
+    /// Overwrite if the target directory already contains a Cargo.toml.
+    #[arg(long, default_value_t = false)]
+    pub force: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -321,8 +350,286 @@ where
         Command::Destroy(args) => cmd_engine(&args, EngineVerb::Destroy, out, err),
         Command::PlanEngine(args) => cmd_engine(&args, EngineVerb::Plan, out, err),
         Command::New(args) => cmd_new(&args, out, err),
+        Command::Pack(args) => cmd_pack(&args, out, err),
     }
 }
+
+fn cmd_pack(args: &PackArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let src = match std::fs::read_to_string(&args.path) {
+        Ok(s) => s,
+        Err(e) => {
+            let _ = writeln!(err, "lava pack: read {}: {e}", args.path.display());
+            return 1;
+        }
+    };
+    let file_stem = args
+        .path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("primitive")
+        .trim_end_matches(".test")
+        .to_string();
+    let crate_name = args
+        .crate_name
+        .clone()
+        .unwrap_or_else(|| {
+            let mut n = String::from("lava-pack-");
+            n.push_str(&file_stem);
+            n
+        });
+    let library_name = crate_name.replace('-', "_");
+    let description = args
+        .description
+        .clone()
+        .unwrap_or_else(|| {
+            let mut d = String::from("Redistributable lava primitive packaged by `lava pack` from ");
+            d.push_str(args.path.file_name().and_then(|n| n.to_str()).unwrap_or(""));
+            d
+        });
+
+    // Output layout.
+    let out_dir = &args.out;
+    let cargo_toml = out_dir.join("Cargo.toml");
+    if cargo_toml.exists() && !args.force {
+        let _ = writeln!(
+            err,
+            "lava pack: {} already exists (pass --force to overwrite)",
+            cargo_toml.display()
+        );
+        return 1;
+    }
+    if let Err(e) = std::fs::create_dir_all(out_dir.join("src")) {
+        let _ = writeln!(
+            err,
+            "lava pack: cannot create {}: {e}",
+            out_dir.join("src").display()
+        );
+        return 1;
+    }
+    if let Err(e) = std::fs::create_dir_all(out_dir.join(".github").join("workflows")) {
+        let _ = writeln!(
+            err,
+            "lava pack: cannot create {}: {e}",
+            out_dir.join(".github").join("workflows").display()
+        );
+        return 1;
+    }
+
+    // Write each artifact via typed builders (no format!() of code).
+    let cargo_body =
+        render_pack_cargo_toml(&crate_name, &library_name, &args.version, &description, &args.authors);
+    if let Err(e) = std::fs::write(&cargo_toml, &cargo_body) {
+        let _ = writeln!(err, "lava pack: write {} failed: {e}", cargo_toml.display());
+        return 1;
+    }
+    let lib_rs = out_dir.join("src").join("lib.rs");
+    let lib_body = render_pack_lib_rs(&library_name, &src);
+    if let Err(e) = std::fs::write(&lib_rs, &lib_body) {
+        let _ = writeln!(err, "lava pack: write {} failed: {e}", lib_rs.display());
+        return 1;
+    }
+    let readme = out_dir.join("README.md");
+    let readme_body = render_pack_readme(&crate_name, &library_name, &description, &file_stem);
+    if let Err(e) = std::fs::write(&readme, &readme_body) {
+        let _ = writeln!(err, "lava pack: write {} failed: {e}", readme.display());
+        return 1;
+    }
+    let gitignore = out_dir.join(".gitignore");
+    let _ = std::fs::write(&gitignore, "/target\n");
+
+    // Workflow shims — same set as every other lava-* repo.
+    let workflows_dir = out_dir.join(".github").join("workflows");
+    for (filename, body) in [
+        ("auto-release.yml", PACK_WORKFLOW_AUTO_RELEASE),
+        ("pre-merge-gate.yml", PACK_WORKFLOW_PRE_MERGE),
+        ("security-gate.yml", PACK_WORKFLOW_SECURITY),
+    ] {
+        let p = workflows_dir.join(filename);
+        if let Err(e) = std::fs::write(&p, body) {
+            let _ = writeln!(err, "lava pack: write {} failed: {e}", p.display());
+            return 1;
+        }
+    }
+
+    let _ = writeln!(
+        out,
+        "lava pack: wrote crate `{}` to {} ({} bytes of .tlisp source embedded)",
+        crate_name,
+        out_dir.display(),
+        src.len()
+    );
+    0
+}
+
+fn render_pack_cargo_toml(
+    crate_name: &str,
+    library_name: &str,
+    version: &str,
+    description: &str,
+    authors: &str,
+) -> String {
+    // Typed assembly: literal scaffold + sanitized field substitution.
+    let mut s = String::new();
+    s.push_str("[package]\n");
+    s.push_str("authors = [\"");
+    s.push_str(authors);
+    s.push_str("\"]\n");
+    s.push_str("description = \"");
+    push_toml_escaped(&mut s, description);
+    s.push_str("\"\n");
+    s.push_str("edition = \"2024\"\n");
+    s.push_str("license = \"MIT\"\n");
+    s.push_str("name = \"");
+    s.push_str(crate_name);
+    s.push_str("\"\n");
+    s.push_str("readme = \"README.md\"\n");
+    s.push_str("repository = \"https://github.com/pleme-io/");
+    s.push_str(crate_name);
+    s.push_str("\"\n");
+    s.push_str("version = \"");
+    s.push_str(version);
+    s.push_str("\"\n\n");
+    s.push_str("[lib]\n");
+    s.push_str("name = \"");
+    s.push_str(library_name);
+    s.push_str("\"\n");
+    s.push_str("path = \"src/lib.rs\"\n\n");
+    s.push_str("[lints.clippy]\n");
+    s.push_str("pedantic = \"warn\"\n");
+    s
+}
+
+fn render_pack_lib_rs(library_name: &str, tlisp_source: &str) -> String {
+    let mut s = String::new();
+    s.push_str("//! ");
+    s.push_str(library_name);
+    s.push_str(" — redistributable lava primitive packaged via `lava pack`.\n//!\n");
+    s.push_str("//! Consumers import [`SOURCE`] and feed it to lava-eval:\n//!\n");
+    s.push_str("//! ```ignore\n");
+    s.push_str("//! use ");
+    s.push_str(library_name);
+    s.push_str("::SOURCE;\n");
+    s.push_str("//! let arch = lava_eval::eval_architecture(SOURCE, &bindings)?;\n");
+    s.push_str("//! ```\n\n");
+    s.push_str("#![allow(clippy::module_name_repetitions)]\n\n");
+    s.push_str("/// The packaged .tlisp source text. Stable byte-for-byte across\n");
+    s.push_str("/// every consumer; reproducible because lava pack embeds the source\n");
+    s.push_str("/// without re-rendering.\n");
+    s.push_str("pub const SOURCE: &str = ");
+    // Use raw string literal r##\"...\"## so the source survives any \" + \\
+    // unmodified; pick a delimiter wider than any "## sequence the source
+    // might contain (cap at 8 hashes — far wider than any realistic tlisp).
+    let delimiter = choose_raw_delim(tlisp_source);
+    s.push('r');
+    for _ in 0..delimiter {
+        s.push('#');
+    }
+    s.push('"');
+    s.push_str(tlisp_source);
+    s.push('"');
+    for _ in 0..delimiter {
+        s.push('#');
+    }
+    s.push_str(";\n\n");
+    s.push_str("#[cfg(test)]\nmod tests {\n");
+    s.push_str("    use super::*;\n\n");
+    s.push_str("    #[test]\n    fn source_is_non_empty() {\n");
+    s.push_str("        assert!(!SOURCE.is_empty());\n    }\n");
+    s.push_str("}\n");
+    s
+}
+
+fn render_pack_readme(crate_name: &str, library_name: &str, description: &str, stem: &str) -> String {
+    let mut s = String::new();
+    s.push_str("# ");
+    s.push_str(crate_name);
+    s.push_str("\n\n");
+    s.push_str(description);
+    s.push_str("\n\n## Usage\n\n```rust\nuse ");
+    s.push_str(library_name);
+    s.push_str("::SOURCE;\n");
+    s.push_str("use lava_eval::{eval_architecture, InputBindings};\n\n");
+    s.push_str("let arch = eval_architecture(SOURCE, &InputBindings::new())?;\nlet json = arch.render_terraform_json()?;\n```\n\n");
+    s.push_str("Generated from `");
+    s.push_str(stem);
+    s.push_str(".tlisp` via `lava pack`. Re-run `lava pack` to refresh.\n");
+    s
+}
+
+fn push_toml_escaped(out: &mut String, s: &str) {
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            _ => out.push(c),
+        }
+    }
+}
+
+/// Pick the smallest raw-string `#` count such that the embedded source
+/// can't accidentally close the literal. Any sequence of N `"` followed
+/// by N `#` would close; we pick N = (max(N appearing in source) + 1).
+fn choose_raw_delim(s: &str) -> usize {
+    let mut needed = 1usize;
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'"' {
+            let mut hashes = 0usize;
+            let mut j = i + 1;
+            while j < bytes.len() && bytes[j] == b'#' {
+                hashes += 1;
+                j += 1;
+            }
+            if hashes + 1 > needed {
+                needed = hashes + 1;
+            }
+            i = j;
+        } else {
+            i += 1;
+        }
+    }
+    needed
+}
+
+const PACK_WORKFLOW_AUTO_RELEASE: &str = "name: auto-release
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      bump-type:
+        description: \"patch | minor | major\"
+        required: false
+        default: patch
+jobs:
+  release:
+    uses: pleme-io/substrate/.github/workflows/cargo-auto-release.yml@main
+    secrets: inherit
+";
+
+const PACK_WORKFLOW_PRE_MERGE: &str = "name: pre-merge-gate
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  gate:
+    uses: pleme-io/substrate/.github/workflows/pre-merge-gate.yml@main
+    secrets: inherit
+";
+
+const PACK_WORKFLOW_SECURITY: &str = "name: security-gate
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+jobs:
+  gate:
+    uses: pleme-io/substrate/.github/workflows/security-gate.yml@main
+    secrets: inherit
+";
 
 fn cmd_new(args: &NewArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     if let Err(e) = std::fs::create_dir_all(&args.out) {

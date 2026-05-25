@@ -413,6 +413,76 @@ fn new_refuses_to_overwrite_unless_force() {
 }
 
 #[test]
+fn pack_wraps_tlisp_in_redistributable_crate_with_workflows() {
+    let dir = tmpdir();
+    let tlisp = dir.join("src.tlisp");
+    let body = "(deflava-architecture demo :inputs () :resources ((aws-vpc \"main\" :cidr-block \"10.0.0.0/16\")))\n";
+    std::fs::write(&tlisp, body).unwrap();
+    let out_dir = dir.join("packed");
+    let (code, stdout, _err) = run(&[
+        "pack",
+        tlisp.to_str().unwrap(),
+        "--out",
+        out_dir.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("lava-pack-src"));
+    // Cargo.toml + src/lib.rs + workflow shims exist.
+    assert!(out_dir.join("Cargo.toml").exists());
+    assert!(out_dir.join("src/lib.rs").exists());
+    assert!(out_dir.join(".github/workflows/auto-release.yml").exists());
+    assert!(out_dir.join(".github/workflows/pre-merge-gate.yml").exists());
+    assert!(out_dir.join(".github/workflows/security-gate.yml").exists());
+    assert!(out_dir.join(".gitignore").exists());
+    assert!(out_dir.join("README.md").exists());
+    // The packed lib exports the source byte-for-byte under `SOURCE`.
+    let lib_body = std::fs::read_to_string(out_dir.join("src/lib.rs")).unwrap();
+    assert!(lib_body.contains("pub const SOURCE: &str"));
+    assert!(lib_body.contains("aws-vpc"));
+}
+
+#[test]
+fn pack_refuses_to_overwrite_unless_force() {
+    let dir = tmpdir();
+    let tlisp = dir.join("src.tlisp");
+    std::fs::write(&tlisp, "(deflava-interface x :inputs () :outputs ())\n").unwrap();
+    let out_dir = dir.join("p");
+    let (code1, _o, _e) = run(&["pack", tlisp.to_str().unwrap(), "--out", out_dir.to_str().unwrap()]);
+    assert_eq!(code1, 0);
+    let (code2, _o, err) = run(&["pack", tlisp.to_str().unwrap(), "--out", out_dir.to_str().unwrap()]);
+    assert_ne!(code2, 0);
+    assert!(err.contains("already exists"));
+    let (code3, _o, _e) = run(&[
+        "pack",
+        tlisp.to_str().unwrap(),
+        "--out",
+        out_dir.to_str().unwrap(),
+        "--force",
+    ]);
+    assert_eq!(code3, 0);
+}
+
+#[test]
+fn pack_custom_crate_name_lands_in_cargo_toml() {
+    let dir = tmpdir();
+    let tlisp = dir.join("src.tlisp");
+    std::fs::write(&tlisp, "(deflava-interface x :inputs () :outputs ())\n").unwrap();
+    let out_dir = dir.join("p");
+    let (code, _o, _e) = run(&[
+        "pack",
+        tlisp.to_str().unwrap(),
+        "--out",
+        out_dir.to_str().unwrap(),
+        "--crate-name",
+        "lava-arch-vpc-tiny",
+    ]);
+    assert_eq!(code, 0);
+    let cargo = std::fs::read_to_string(out_dir.join("Cargo.toml")).unwrap();
+    assert!(cargo.contains("name = \"lava-arch-vpc-tiny\""));
+    assert!(cargo.contains("name = \"lava_arch_vpc_tiny\"")); // lib name
+}
+
+#[test]
 fn no_args_emits_help_with_nonzero_exit() {
     let (code, _out, err) = run(&[]);
     assert_ne!(code, 0);
