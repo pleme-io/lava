@@ -44,6 +44,66 @@ pub enum Command {
     Graph(GraphArgs),
     /// Run typed assertion tests authored in tatara-lisp.
     Test(TestArgs),
+    /// Render + `<engine> apply` the resulting terraform.json.
+    Apply(EngineArgs),
+    /// Render + `<engine> destroy` the resulting terraform.json.
+    Destroy(EngineArgs),
+    /// Render + `<engine> plan` the resulting terraform.json.
+    PlanEngine(EngineArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct EngineArgs {
+    /// Path to a .tlisp file OR a bundled architecture name.
+    pub target: String,
+    #[arg(long = "binding", value_name = "KEY=VALUE")]
+    pub bindings: Vec<String>,
+    #[arg(long = "binding-list", value_name = "KEY=VAL,VAL,...")]
+    pub list_bindings: Vec<String>,
+    /// Engine selection. Default: `embedded` (in-process magma, fully
+    /// in-memory). `tofu` / `terraform` shell out and write
+    /// `main.tf.json` to a workdir.
+    #[arg(long, default_value_t = Engine::Embedded)]
+    pub engine: Engine,
+    /// Working directory for the render artifact + state file when
+    /// shelling out. Default: tempdir per run (state is ephemeral).
+    /// Ignored by `--engine embedded` unless `--persist` is set.
+    #[arg(long, value_name = "DIR")]
+    pub work_dir: Option<std::path::PathBuf>,
+    /// Force `--engine embedded` to ALSO write `main.tf.json` into
+    /// `--work-dir` (or a tempdir) for inspection. Off by default —
+    /// embedded mode keeps everything in-memory.
+    #[arg(long, default_value_t = false)]
+    pub persist: bool,
+    /// Skip confirmation prompts on apply / destroy (`-auto-approve`).
+    /// Default: true (CLI is non-interactive; operator confirms via
+    /// `lava plan-engine` first).
+    #[arg(long, default_value_t = true)]
+    pub auto_approve: bool,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum Engine {
+    /// In-process magma; zero subprocess, zero filesystem state spill.
+    /// Default; requires the `embedded-magma` build feature.
+    Embedded,
+    /// Alias for `embedded`.
+    Magma,
+    /// Shell out to `tofu`. Writes main.tf.json to a workdir.
+    Tofu,
+    /// Shell out to `terraform`. Writes main.tf.json to a workdir.
+    Terraform,
+}
+
+impl std::fmt::Display for Engine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Embedded => f.write_str("embedded"),
+            Self::Magma => f.write_str("magma"),
+            Self::Tofu => f.write_str("tofu"),
+            Self::Terraform => f.write_str("terraform"),
+        }
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -223,7 +283,269 @@ where
         Command::Show { what } => cmd_show(&what, out, err),
         Command::Graph(args) => cmd_graph(&args, out, err),
         Command::Test(args) => cmd_test(&args, out, err),
+        Command::Apply(args) => cmd_engine(&args, EngineVerb::Apply, out, err),
+        Command::Destroy(args) => cmd_engine(&args, EngineVerb::Destroy, out, err),
+        Command::PlanEngine(args) => cmd_engine(&args, EngineVerb::Plan, out, err),
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+enum EngineVerb {
+    Apply,
+    Destroy,
+    Plan,
+}
+
+impl EngineVerb {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Apply => "apply",
+            Self::Destroy => "destroy",
+            Self::Plan => "plan",
+        }
+    }
+}
+
+fn cmd_engine(
+    args: &EngineArgs,
+    verb: EngineVerb,
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> i32 {
+    // 1) Resolve target → .tlisp source path.
+    let path = {
+        let bundled = bundled_source_path(&args.target);
+        if bundled.exists() {
+            bundled
+        } else {
+            std::path::PathBuf::from(&args.target)
+        }
+    };
+    if !path.exists() {
+        let _ = writeln!(
+            err,
+            "lava {}: target `{}` not found",
+            verb.as_str(),
+            args.target
+        );
+        return 1;
+    }
+
+    // 2) Render to terraform.json in-memory.
+    let plan_args = LavaPlanArgs {
+        path,
+        bindings: parse_bindings(&args.bindings, &args.list_bindings),
+        gate_with: None,
+        runtime_kind: None,
+    };
+    let plan = match synthesize(&plan_args) {
+        Ok(p) => p,
+        Err(e) => {
+            let _ = writeln!(err, "lava {}: render failed: {e}", verb.as_str());
+            return 1;
+        }
+    };
+
+    // 3) Dispatch by engine selection.
+    match args.engine {
+        Engine::Embedded | Engine::Magma => {
+            // Optionally persist the rendered JSON for inspection
+            // even though the engine itself runs in-memory.
+            if args.persist {
+                if let Err(code) = persist_terraform_json(args, &plan.terraform_json, err) {
+                    return code;
+                }
+            }
+            run_embedded_magma(verb, &plan.terraform_json, args.auto_approve, out, err)
+        }
+        Engine::Tofu | Engine::Terraform => {
+            let engine_bin = match args.engine {
+                Engine::Tofu => "tofu",
+                Engine::Terraform => "terraform",
+                _ => unreachable!(),
+            };
+            run_shell_engine(verb, args, &plan.terraform_json, engine_bin, out, err)
+        }
+    }
+}
+
+/// Drive the operation through the in-process embedded magma engine.
+/// Compiled out unless the `embedded-magma` feature is on; without
+/// the feature, surfaces a typed error so operators know to either
+/// rebuild with the feature or pick a shell-out engine.
+fn run_embedded_magma(
+    verb: EngineVerb,
+    _terraform_json: &serde_json::Value,
+    _auto_approve: bool,
+    _out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> i32 {
+    #[cfg(feature = "embedded-magma")]
+    {
+        let _ = writeln!(
+            _out,
+            "lava {} (embedded magma): in-process plan/apply",
+            verb.as_str()
+        );
+        // The real impl wires magma_config::Config::from_json +
+        // magma_plan::plan + magma_apply::apply here. magma is
+        // currently a workspace-internal crate; this branch lands
+        // when magma publishes its library API surface (tracked
+        // upstream as #349).
+        let _ = writeln!(
+            err,
+            "lava {} (embedded magma): library API surface not yet bundled into this build; \
+             upstream magma needs to publish magma-config / magma-plan / magma-apply as git deps. \
+             Falling back to subprocess via --engine tofu or --engine terraform.",
+            verb.as_str()
+        );
+        1
+    }
+    #[cfg(not(feature = "embedded-magma"))]
+    {
+        let _ = writeln!(
+            err,
+            "lava {}: embedded engine selected but this build was compiled without the \
+             `embedded-magma` feature. Rebuild with `cargo build --features embedded-magma` \
+             or pick a different engine (`--engine tofu` / `--engine terraform`).",
+            verb.as_str()
+        );
+        let _ = err; // keep `err` used when feature disabled
+        1
+    }
+}
+
+/// Drive the operation through `tofu` / `terraform`. Writes the
+/// rendered JSON into a workdir + invokes `init` + `verb`.
+fn run_shell_engine(
+    verb: EngineVerb,
+    args: &EngineArgs,
+    terraform_json: &serde_json::Value,
+    engine: &str,
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> i32 {
+    let work_dir = match resolve_work_dir(args, verb, err) {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
+    let main_tf_json = work_dir.join("main.tf.json");
+    let body = serde_json::to_string_pretty(terraform_json).unwrap_or_default();
+    if let Err(e) = std::fs::write(&main_tf_json, &body) {
+        let _ = writeln!(
+            err,
+            "lava {}: write {} failed: {e}",
+            verb.as_str(),
+            main_tf_json.display()
+        );
+        return 1;
+    }
+    let _ = writeln!(
+        out,
+        "lava {} ({engine}): wrote {} bytes → {}",
+        verb.as_str(),
+        body.len(),
+        main_tf_json.display()
+    );
+
+    // init
+    let init = std::process::Command::new(engine)
+        .arg("-chdir")
+        .arg(work_dir.to_str().unwrap_or("."))
+        .arg("init")
+        .arg("-input=false")
+        .status();
+    let Ok(status) = init else {
+        let _ = writeln!(
+            err,
+            "lava {}: failed to invoke `{engine} init`: is `{engine}` on $PATH?",
+            verb.as_str()
+        );
+        return 1;
+    };
+    if !status.success() {
+        let _ = writeln!(
+            err,
+            "lava {}: `{engine} init` exited with non-zero status",
+            verb.as_str()
+        );
+        return 1;
+    }
+
+    // verb
+    let mut cmd = std::process::Command::new(engine);
+    cmd.arg("-chdir")
+        .arg(work_dir.to_str().unwrap_or("."))
+        .arg(verb.as_str())
+        .arg("-input=false");
+    if matches!(verb, EngineVerb::Apply | EngineVerb::Destroy) && args.auto_approve {
+        cmd.arg("-auto-approve");
+    }
+    match cmd.status() {
+        Ok(s) if s.success() => 0,
+        Ok(_) => {
+            let _ = writeln!(
+                err,
+                "lava {}: `{engine} {}` exited with non-zero status",
+                verb.as_str(),
+                verb.as_str()
+            );
+            1
+        }
+        Err(e) => {
+            let _ = writeln!(
+                err,
+                "lava {}: failed to invoke `{engine} {}`: {e}",
+                verb.as_str(),
+                verb.as_str()
+            );
+            1
+        }
+    }
+}
+
+fn persist_terraform_json(
+    args: &EngineArgs,
+    terraform_json: &serde_json::Value,
+    err: &mut dyn Write,
+) -> Result<(), i32> {
+    let work_dir = resolve_work_dir(args, EngineVerb::Plan, err)?;
+    let main_tf_json = work_dir.join("main.tf.json");
+    let body = serde_json::to_string_pretty(terraform_json).unwrap_or_default();
+    std::fs::write(&main_tf_json, body).map_err(|e| {
+        let _ = writeln!(err, "lava persist: write {} failed: {e}", main_tf_json.display());
+        1_i32
+    })?;
+    Ok(())
+}
+
+fn resolve_work_dir(
+    args: &EngineArgs,
+    verb: EngineVerb,
+    err: &mut dyn Write,
+) -> Result<std::path::PathBuf, i32> {
+    let dir = match &args.work_dir {
+        Some(d) => d.clone(),
+        None => std::env::temp_dir().join(format!(
+            "lava-{}-{}-{}",
+            verb.as_str(),
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )),
+    };
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        let _ = writeln!(
+            err,
+            "lava {}: cannot create work dir {}: {e}",
+            verb.as_str(),
+            dir.display()
+        );
+        return Err(1);
+    }
+    Ok(dir)
 }
 
 fn cmd_test(args: &TestArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {

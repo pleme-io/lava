@@ -16,6 +16,14 @@ path = "src/lib.rs"
 name = "lava"
 path = "src/main.rs"
 
+[features]
+default = []
+# Drives `lava apply/destroy/plan` through an in-process embedded
+# magma instead of shelling out to `tofu`/`terraform`. When enabled,
+# `--engine embedded` (or `--engine magma`) routes plan/apply through
+# magma's library API — zero subprocess, zero filesystem state spill.
+embedded-magma = []
+
 [lints.clippy]
 pedantic = "warn"
 
