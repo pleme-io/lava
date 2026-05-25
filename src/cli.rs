@@ -104,8 +104,12 @@ pub enum ShowTarget {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
 pub enum OutFormat {
+    /// terraform.json (magma-compatible).
     Json,
+    /// terraform.json shape serialized to YAML.
     Yaml,
+    /// Crossplane Composition + CompositeResourceDefinition pair.
+    Crossplane,
 }
 
 impl std::fmt::Display for OutFormat {
@@ -113,6 +117,7 @@ impl std::fmt::Display for OutFormat {
         match self {
             Self::Json => f.write_str("json"),
             Self::Yaml => f.write_str("yaml"),
+            Self::Crossplane => f.write_str("crossplane"),
         }
     }
 }
@@ -157,15 +162,14 @@ where
 
 fn cmd_plan(args: &PlanArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let bindings = parse_bindings(&args.bindings, &args.list_bindings);
-    let mut plan_args = LavaPlanArgs {
+    let plan_args = LavaPlanArgs {
         path: args.path.clone(),
         bindings,
         gate_with: args.gate.clone(),
         runtime_kind: None,
     };
-    plan_args.gate_with.clone_from(&args.gate);
     match synthesize(&plan_args) {
-        Ok(plan) => emit(&plan.terraform_json, args.format, args.out.as_ref(), out, err),
+        Ok(plan) => emit_plan(&plan, args.format, args.out.as_ref(), out, err),
         Err(e) => {
             let _ = writeln!(err, "lava plan failed: {e}");
             1
@@ -195,7 +199,7 @@ fn cmd_render(args: &RenderArgs, out: &mut dyn Write, err: &mut dyn Write) -> i3
         runtime_kind: None,
     };
     match synthesize(&plan_args) {
-        Ok(plan) => emit(&plan.terraform_json, args.format, args.out.as_ref(), out, err),
+        Ok(plan) => emit_plan(&plan, args.format, args.out.as_ref(), out, err),
         Err(e) => {
             let _ = writeln!(err, "lava render failed: {e}");
             1
@@ -270,16 +274,23 @@ fn cmd_show(target: &ShowTarget, out: &mut dyn Write, err: &mut dyn Write) -> i3
     }
 }
 
-fn emit(
-    value: &serde_json::Value,
+fn emit_plan(
+    plan: &magma_lava::LavaPlan,
     format: OutFormat,
     target: Option<&std::path::PathBuf>,
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> i32 {
     let serialized = match format {
-        OutFormat::Json => serde_json::to_string_pretty(value).unwrap_or_default(),
-        OutFormat::Yaml => serde_yaml::to_string(value).unwrap_or_default(),
+        OutFormat::Json => serde_json::to_string_pretty(&plan.terraform_json).unwrap_or_default(),
+        OutFormat::Yaml => serde_yaml::to_string(&plan.terraform_json).unwrap_or_default(),
+        OutFormat::Crossplane => match plan.crossplane_yaml() {
+            Ok(s) => s,
+            Err(e) => {
+                let _ = writeln!(err, "lava emit (crossplane) failed: {e}");
+                return 1;
+            }
+        },
     };
     match target {
         Some(path) => match std::fs::write(path, &serialized) {

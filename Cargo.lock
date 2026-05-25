@@ -170,8 +170,8 @@ dependencies = [
 
 [[package]]
 name = "lava-architectures"
-version = "0.1.5"
-source = "git+https://github.com/pleme-io/lava-architectures?branch=main#75a19aa454d5a9ed6a693f3b8ff12645fc4cf8af"
+version = "0.1.6"
+source = "git+https://github.com/pleme-io/lava-architectures?branch=main#8b4d73a0f2224c8f89e1bd1ea463aa1b04ae1cfa"
 dependencies = [
  "indexmap",
  "lava-arch",
@@ -198,11 +198,12 @@ dependencies = [
 [[package]]
 name = "lava-core"
 version = "0.1.2"
-source = "git+https://github.com/pleme-io/lava-core?branch=main#9d3dacaf51c7bae86efb0c925842286a793039cf"
+source = "git+https://github.com/pleme-io/lava-core?branch=main#2751e3e0ea05c6ab9365141cec97e96dca59351d"
 dependencies = [
  "indexmap",
  "serde",
  "serde_json",
+ "serde_yaml",
  "thiserror",
 ]
 
@@ -258,7 +259,7 @@ dependencies = [
 [[package]]
 name = "magma-lava"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/magma-lava?branch=main#ca165f5b338ff5609d4a5efb499e7b651cd6659f"
+source = "git+https://github.com/pleme-io/magma-lava?branch=main#d63a4a2286b15d67f74c1469b5fe22762f49a1cf"
 dependencies = [
  "indexmap",
  "lava-architectures",

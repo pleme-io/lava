@@ -133,6 +133,23 @@ fn plan_yaml_format_round_trips() {
 }
 
 #[test]
+fn plan_crossplane_format_emits_xrd_plus_composition() {
+    let dir = tmpdir();
+    let path = dir.join("demo.tlisp");
+    std::fs::write(&path, VPC_TLISP).unwrap();
+    let (code, out, _err) = run(&[
+        "plan",
+        path.to_str().unwrap(),
+        "--format",
+        "crossplane",
+    ]);
+    assert_eq!(code, 0);
+    assert!(out.contains("kind: CompositeResourceDefinition"));
+    assert!(out.contains("kind: Composition"));
+    assert!(out.contains("cidr_block: 10.0.0.0/16"));
+}
+
+#[test]
 fn validate_with_passing_gate_exits_zero() {
     let dir = tmpdir();
     let path = dir.join("demo.tlisp");
