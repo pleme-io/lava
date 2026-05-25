@@ -73,6 +73,39 @@ pub enum Command {
     /// `<engine> validate` — syntactic + semantic validation of the
     /// rendered terraform.json.
     ValidateTf(EngineArgs),
+    /// Fetch + regenerate typed shapes for a terraform provider. Runs
+    /// `tofu providers schema -json` against a seeded workspace + pipes
+    /// into lava-forge. Default `--dry-run`; pass `--apply` to write.
+    Forge(ForgeArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct ForgeArgs {
+    /// Provider slug (e.g. `aws`, `cloudflare`, `azurerm`, `google`).
+    /// Maps to the matching `pleme-io/lava-<provider>` repo + the
+    /// terraform-provider source kept in its schema.json.
+    pub provider: String,
+    /// Provider source for terraform's required_providers block
+    /// (e.g. `hashicorp/aws`, `cloudflare/cloudflare`).
+    #[arg(long, value_name = "SOURCE")]
+    pub source: Option<String>,
+    /// Optional version pin for the required_providers block.
+    #[arg(long, value_name = "V")]
+    pub provider_version: Option<String>,
+    /// Working directory for the staging tofu workspace + schema fetch.
+    /// Default: tempdir per run.
+    #[arg(long)]
+    pub work_dir: Option<std::path::PathBuf>,
+    /// Output directory for the regenerated resources/. Default:
+    /// `../lava-<provider>/resources` relative to the lava binary.
+    #[arg(long)]
+    pub out: Option<std::path::PathBuf>,
+    /// Skip the actual write — print the planned action only.
+    #[arg(long, default_value_t = true)]
+    pub dry_run: bool,
+    /// Write the regenerated schema + resources. Negates --dry-run.
+    #[arg(long, default_value_t = false)]
+    pub apply: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -508,6 +541,130 @@ where
         }
         Command::Fmt(args) => cmd_engine(&args, EngineVerb::Fmt, out, err),
         Command::ValidateTf(args) => cmd_engine(&args, EngineVerb::Validate, out, err),
+        Command::Forge(args) => cmd_forge(&args, out, err),
+    }
+}
+
+fn cmd_forge(args: &ForgeArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let provider = &args.provider;
+    let source = args
+        .source
+        .clone()
+        .unwrap_or_else(|| match provider.as_str() {
+            "aws" | "azurerm" | "google" | "kubernetes" | "helm" | "datadog" | "splunk"
+            | "akeyless" => format!("hashicorp/{provider}"),
+            "cloudflare" => "cloudflare/cloudflare".to_string(),
+            _ => format!("hashicorp/{provider}"),
+        });
+    let work = match &args.work_dir {
+        Some(d) => d.clone(),
+        None => std::env::temp_dir().join(format!(
+            "lava-forge-{}-{}-{}",
+            provider,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )),
+    };
+    if let Err(e) = std::fs::create_dir_all(&work) {
+        let _ = writeln!(err, "lava forge: cannot create workdir {}: {e}", work.display());
+        return 1;
+    }
+
+    // Render a minimal main.tf.json that pulls in the provider via
+    // terraform.required_providers. Typed serde_json::Value — no
+    // format!() of TF JSON.
+    let mut req: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    let mut entry: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    entry.insert("source".into(), serde_json::Value::String(source.clone()));
+    if let Some(v) = &args.provider_version {
+        entry.insert("version".into(), serde_json::Value::String(v.clone()));
+    }
+    req.insert(provider.clone(), serde_json::Value::Object(entry));
+    let tf_json = serde_json::json!({
+        "terraform": { "required_providers": serde_json::Value::Object(req) },
+        "provider": { provider.as_str(): {} }
+    });
+    let tf_path = work.join("main.tf.json");
+    if let Err(e) = std::fs::write(&tf_path, serde_json::to_string_pretty(&tf_json).unwrap()) {
+        let _ = writeln!(err, "lava forge: write {} failed: {e}", tf_path.display());
+        return 1;
+    }
+
+    let _ = writeln!(
+        out,
+        "lava forge: staged tofu workspace at {}\n  provider: {}\n  source:   {}",
+        work.display(),
+        provider,
+        source
+    );
+
+    if args.dry_run && !args.apply {
+        let _ = writeln!(
+            out,
+            "lava forge: dry-run (pass --apply to actually run tofu init + schema fetch + lava-forge)"
+        );
+        return 0;
+    }
+
+    // tofu init
+    let init = std::process::Command::new("tofu")
+        .arg("-chdir").arg(work.to_str().unwrap_or("."))
+        .arg("init").arg("-input=false")
+        .status();
+    if init.is_err() {
+        let _ = writeln!(err, "lava forge: tofu not on PATH — install OpenTofu and retry");
+        return 1;
+    }
+
+    // tofu providers schema -json > schema.json
+    let schema_out = work.join("schema.json");
+    let schema = std::process::Command::new("tofu")
+        .arg("-chdir").arg(work.to_str().unwrap_or("."))
+        .arg("providers").arg("schema").arg("-json")
+        .output();
+    match schema {
+        Ok(o) if o.status.success() => {
+            if let Err(e) = std::fs::write(&schema_out, &o.stdout) {
+                let _ = writeln!(err, "lava forge: write {} failed: {e}", schema_out.display());
+                return 1;
+            }
+        }
+        _ => {
+            let _ = writeln!(err, "lava forge: tofu providers schema -json failed");
+            return 1;
+        }
+    }
+
+    // Invoke lava-forge against the schema → resources output.
+    let resources_out = args
+        .out
+        .clone()
+        .unwrap_or_else(|| work.join("resources"));
+    let forge = std::process::Command::new("lava-forge")
+        .arg("generate")
+        .arg("--schema").arg(&schema_out)
+        .arg("--out").arg(&resources_out)
+        .status();
+    match forge {
+        Ok(s) if s.success() => {
+            let _ = writeln!(
+                out,
+                "lava forge: regenerated → {}",
+                resources_out.display()
+            );
+            0
+        }
+        Ok(_) => {
+            let _ = writeln!(err, "lava forge: lava-forge exited non-zero");
+            1
+        }
+        Err(_) => {
+            let _ = writeln!(err, "lava forge: lava-forge not on PATH");
+            1
+        }
     }
 }
 

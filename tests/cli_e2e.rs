@@ -590,6 +590,40 @@ fn pack_custom_crate_name_lands_in_cargo_toml() {
 }
 
 #[test]
+fn forge_dry_run_stages_workspace_without_running_tofu() {
+    let dir = tmpdir();
+    let (code, out, _err) = run(&[
+        "forge",
+        "cloudflare",
+        "--work-dir",
+        dir.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0);
+    assert!(out.contains("staged tofu workspace"));
+    assert!(out.contains("provider: cloudflare"));
+    assert!(out.contains("dry-run"));
+    let tf = dir.join("main.tf.json");
+    assert!(tf.exists());
+    let body = std::fs::read_to_string(&tf).unwrap();
+    assert!(body.contains("required_providers"));
+    assert!(body.contains("cloudflare/cloudflare"));
+}
+
+#[test]
+fn forge_resolves_source_for_known_providers() {
+    let dir = tmpdir();
+    let (code, _, _) = run(&[
+        "forge",
+        "aws",
+        "--work-dir",
+        dir.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0);
+    let body = std::fs::read_to_string(dir.join("main.tf.json")).unwrap();
+    assert!(body.contains("hashicorp/aws"));
+}
+
+#[test]
 fn no_args_emits_help_with_nonzero_exit() {
     let (code, _out, err) = run(&[]);
     assert_ne!(code, 0);
