@@ -57,6 +57,74 @@ pub enum Command {
     /// `pub const SOURCE: &str` so consumers `use my_crate::SOURCE;`
     /// and pipe it straight into lava-eval.
     Pack(PackArgs),
+    /// `<engine> output [name]` — read outputs from the existing state.
+    Output(OutputCmdArgs),
+    /// `<engine> state <subcommand>` — inspect or mutate state.
+    State(StateArgs),
+    /// `<engine> refresh` — re-fetch real-world state.
+    Refresh(EngineArgs),
+    /// `<engine> import <addr> <id>` — import existing infra into state.
+    Import(ImportArgs),
+    /// `<engine> workspace <subcommand>` — list/select workspaces.
+    Workspace(WorkspaceArgs),
+    /// `<engine> fmt` — format terraform.json (no-op for our typed
+    /// renderer; surfaced for parity).
+    Fmt(EngineArgs),
+    /// `<engine> validate` — syntactic + semantic validation of the
+    /// rendered terraform.json.
+    ValidateTf(EngineArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct OutputCmdArgs {
+    pub target: String,
+    #[arg(long, value_name = "NAME")]
+    pub name: Option<String>,
+    #[arg(long, default_value_t = Engine::Embedded)]
+    pub engine: Engine,
+    #[arg(long)]
+    pub work_dir: Option<std::path::PathBuf>,
+}
+
+#[derive(Parser, Debug)]
+pub struct StateArgs {
+    /// Subcommand to dispatch to the engine: list / show / mv / rm.
+    pub sub: String,
+    /// Optional resource-address argument for show/mv/rm.
+    pub address: Option<String>,
+    /// New address (for mv).
+    pub new_address: Option<String>,
+    #[arg(long, default_value_t = Engine::Embedded)]
+    pub engine: Engine,
+    #[arg(long)]
+    pub work_dir: Option<std::path::PathBuf>,
+}
+
+#[derive(Parser, Debug)]
+pub struct ImportArgs {
+    pub target: String,
+    /// Terraform resource address (e.g. aws_vpc.main).
+    pub address: String,
+    /// Cloud-side ID to import (e.g. vpc-abc123).
+    pub id: String,
+    #[arg(long = "binding", value_name = "KEY=VALUE")]
+    pub bindings: Vec<String>,
+    #[arg(long, default_value_t = Engine::Embedded)]
+    pub engine: Engine,
+    #[arg(long)]
+    pub work_dir: Option<std::path::PathBuf>,
+}
+
+#[derive(Parser, Debug)]
+pub struct WorkspaceArgs {
+    /// list | new | select | show
+    pub sub: String,
+    /// Workspace name (for new/select).
+    pub name: Option<String>,
+    #[arg(long, default_value_t = Engine::Embedded)]
+    pub engine: Engine,
+    #[arg(long)]
+    pub work_dir: Option<std::path::PathBuf>,
 }
 
 #[derive(Parser, Debug)]
@@ -351,6 +419,186 @@ where
         Command::PlanEngine(args) => cmd_engine(&args, EngineVerb::Plan, out, err),
         Command::New(args) => cmd_new(&args, out, err),
         Command::Pack(args) => cmd_pack(&args, out, err),
+        Command::Output(args) => cmd_magma_flow(
+            &args.target,
+            &args.engine,
+            args.work_dir.as_ref(),
+            "output",
+            args.name.as_deref().map(|n| vec![n.to_string()]).unwrap_or_default(),
+            &[],
+            &[],
+            out,
+            err,
+        ),
+        Command::State(args) => {
+            let mut argv = vec![args.sub.clone()];
+            if let Some(a) = &args.address {
+                argv.push(a.clone());
+            }
+            if let Some(n) = &args.new_address {
+                argv.push(n.clone());
+            }
+            cmd_magma_flow(
+                "(state)",
+                &args.engine,
+                args.work_dir.as_ref(),
+                "state",
+                argv,
+                &[],
+                &[],
+                out,
+                err,
+            )
+        }
+        Command::Refresh(args) => cmd_engine(&args, EngineVerb::Refresh, out, err),
+        Command::Import(args) => {
+            cmd_magma_flow(
+                &args.target,
+                &args.engine,
+                args.work_dir.as_ref(),
+                "import",
+                vec![args.address.clone(), args.id.clone()],
+                &args.bindings,
+                &[],
+                out,
+                err,
+            )
+        }
+        Command::Workspace(args) => {
+            let mut argv = vec!["workspace".to_string(), args.sub.clone()];
+            if let Some(n) = &args.name {
+                argv.push(n.clone());
+            }
+            cmd_magma_flow(
+                "(workspace)",
+                &args.engine,
+                args.work_dir.as_ref(),
+                "",
+                argv,
+                &[],
+                &[],
+                out,
+                err,
+            )
+        }
+        Command::Fmt(args) => cmd_engine(&args, EngineVerb::Fmt, out, err),
+        Command::ValidateTf(args) => cmd_engine(&args, EngineVerb::Validate, out, err),
+    }
+}
+
+/// Generic dispatcher for `<engine> <verb> <extra-argv...>`. Renders
+/// the target if a .tlisp path was provided; for state/workspace
+/// flows the verb operates on the workdir directly without needing
+/// a render.
+#[allow(clippy::too_many_arguments)]
+fn cmd_magma_flow(
+    target: &str,
+    engine: &Engine,
+    work_dir: Option<&std::path::PathBuf>,
+    verb: &str,
+    argv: Vec<String>,
+    bindings: &[String],
+    list_bindings: &[String],
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> i32 {
+    // Resolve workdir (no render needed for state/workspace flows).
+    let work = match work_dir {
+        Some(d) => d.clone(),
+        None => std::env::temp_dir().join(format!(
+            "lava-{verb}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )),
+    };
+    if let Err(e) = std::fs::create_dir_all(&work) {
+        let _ = writeln!(err, "lava: cannot create work dir {}: {e}", work.display());
+        return 1;
+    }
+
+    // If target is a real .tlisp path or bundled name, render the
+    // architecture into work/main.tf.json so engine has something to
+    // operate on. Skip for the synthetic '(state)' / '(workspace)' targets.
+    if !target.starts_with('(') {
+        let path = {
+            let bundled = bundled_source_path(target);
+            if bundled.exists() {
+                bundled
+            } else {
+                std::path::PathBuf::from(target)
+            }
+        };
+        if path.exists() {
+            let plan_args = LavaPlanArgs {
+                path,
+                bindings: parse_bindings(bindings, list_bindings),
+                gate_with: None,
+                runtime_kind: None,
+            };
+            if let Ok(plan) = synthesize(&plan_args) {
+                let body = serde_json::to_string_pretty(&plan.terraform_json).unwrap_or_default();
+                let _ = std::fs::write(work.join("main.tf.json"), body);
+            }
+        }
+    }
+
+    let engine_bin = match engine {
+        Engine::Embedded | Engine::Magma => {
+            // Embedded path for non-render flows: not yet wired (same
+            // status as plan/apply embedded). Operator picks tofu/terraform.
+            let _ = writeln!(
+                err,
+                "lava {verb}: embedded magma not yet bundled in this build; \
+                 re-run with `--engine tofu` or `--engine terraform`."
+            );
+            return 1;
+        }
+        Engine::Tofu => "tofu",
+        Engine::Terraform => "terraform",
+    };
+
+    // Run init first (idempotent).
+    let init = std::process::Command::new(engine_bin)
+        .arg("-chdir")
+        .arg(work.to_str().unwrap_or("."))
+        .arg("init")
+        .arg("-input=false")
+        .status();
+    if let Err(e) = init {
+        let _ = writeln!(
+            err,
+            "lava {verb}: failed to invoke `{engine_bin} init`: {e}"
+        );
+        return 1;
+    }
+
+    let mut cmd = std::process::Command::new(engine_bin);
+    cmd.arg("-chdir").arg(work.to_str().unwrap_or("."));
+    if !verb.is_empty() {
+        cmd.arg(verb);
+    }
+    for a in &argv {
+        cmd.arg(a);
+    }
+    match cmd.status() {
+        Ok(s) if s.success() => {
+            let _ = writeln!(out, "lava {verb}: ok");
+            0
+        }
+        Ok(_) => {
+            let _ = writeln!(err, "lava {verb}: `{engine_bin} {verb}` exited non-zero");
+            1
+        }
+        Err(e) => {
+            let _ = writeln!(
+                err,
+                "lava {verb}: failed to invoke `{engine_bin} {verb}`: {e}"
+            );
+            1
+        }
     }
 }
 
@@ -733,6 +981,9 @@ enum EngineVerb {
     Apply,
     Destroy,
     Plan,
+    Refresh,
+    Fmt,
+    Validate,
 }
 
 impl EngineVerb {
@@ -741,6 +992,9 @@ impl EngineVerb {
             Self::Apply => "apply",
             Self::Destroy => "destroy",
             Self::Plan => "plan",
+            Self::Refresh => "refresh",
+            Self::Fmt => "fmt",
+            Self::Validate => "validate",
         }
     }
 }
