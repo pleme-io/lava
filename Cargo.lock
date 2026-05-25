@@ -142,7 +142,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "lava"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "clap",
  "indexmap",
@@ -171,8 +171,8 @@ dependencies = [
 
 [[package]]
 name = "lava-architectures"
-version = "0.1.7"
-source = "git+https://github.com/pleme-io/lava-architectures?branch=main#a43805172de58a0dce95b7e0c6e416d010b06b4b"
+version = "0.1.8"
+source = "git+https://github.com/pleme-io/lava-architectures?branch=main#cf33a209134ad3df04d29825e23d10f2b4b81c9f"
 dependencies = [
  "indexmap",
  "lava-arch",
@@ -250,8 +250,8 @@ dependencies = [
 
 [[package]]
 name = "lava-test"
-version = "0.1.0"
-source = "git+https://github.com/pleme-io/lava-test?branch=main#cbedb53c0664a1441c78872e2d4fefaa5228a4f9"
+version = "0.1.1"
+source = "git+https://github.com/pleme-io/lava-test?branch=main#4768381a91dd1c362ad2c293d8227adc36047ab9"
 dependencies = [
  "indexmap",
  "lava-core",
@@ -272,8 +272,8 @@ dependencies = [
 
 [[package]]
 name = "magma-lava"
-version = "0.1.0"
-source = "git+https://github.com/pleme-io/magma-lava?branch=main#2ee1cc7780490ccd4f1d716f159e1eb33d99030d"
+version = "0.1.1"
+source = "git+https://github.com/pleme-io/magma-lava?branch=main#f7bfefe8daf532bf8d69c741fad4f0312b73b9b1"
 dependencies = [
  "indexmap",
  "lava-architectures",
