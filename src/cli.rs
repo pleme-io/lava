@@ -42,6 +42,23 @@ pub enum Command {
     },
     /// Emit a dependency graph (DOT or Mermaid) for the architecture.
     Graph(GraphArgs),
+    /// Run typed assertion tests authored in tatara-lisp.
+    Test(TestArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct TestArgs {
+    /// Path to a .test.tlisp file. May contain multiple
+    /// (deflava-test …) forms. Each forms a TestCase.
+    pub path: std::path::PathBuf,
+    /// Override the architecture for every case in the file. Useful
+    /// when the .test.tlisp doesn't pin one + the operator wants to
+    /// re-target the suite at a different bundled architecture.
+    #[arg(long, value_name = "NAME")]
+    pub architecture: Option<String>,
+    /// `key=value` bindings layered on top of each case's own bindings.
+    #[arg(long = "binding", value_name = "KEY=VALUE")]
+    pub bindings: Vec<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -205,7 +222,141 @@ where
         Command::Ls { what } => cmd_ls(&what, out, err),
         Command::Show { what } => cmd_show(&what, out, err),
         Command::Graph(args) => cmd_graph(&args, out, err),
+        Command::Test(args) => cmd_test(&args, out, err),
     }
+}
+
+fn cmd_test(args: &TestArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let src = match std::fs::read_to_string(&args.path) {
+        Ok(s) => s,
+        Err(e) => {
+            let _ = writeln!(err, "lava test: read {}: {e}", args.path.display());
+            return 1;
+        }
+    };
+    let cases = match lava_test::tests_in_source(&src) {
+        Ok(cs) => cs,
+        Err(e) => {
+            let _ = writeln!(err, "lava test: parse: {e}");
+            return 1;
+        }
+    };
+    if cases.is_empty() {
+        let _ = writeln!(err, "lava test: no (deflava-test …) forms in {}", args.path.display());
+        return 1;
+    }
+
+    let cli_bindings = parse_kv(&args.bindings);
+    let mut total_pass: usize = 0;
+    let mut total_fail: usize = 0;
+
+    for case in &cases {
+        let arch_name = args
+            .architecture
+            .clone()
+            .or_else(|| case.architecture.clone());
+        let Some(arch_name) = arch_name else {
+            let _ = writeln!(
+                err,
+                "  ✗ {} — no :architecture set (use --architecture)",
+                case.name
+            );
+            total_fail += 1;
+            continue;
+        };
+        let plan = match render_case(&arch_name, &case.bindings, &cli_bindings, err) {
+            Some(p) => p,
+            None => {
+                total_fail += 1;
+                continue;
+            }
+        };
+        let ctx = match lava_test::AssertContext::from_architecture(&plan.architecture) {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = writeln!(err, "  ✗ {} — render: {e}", case.name);
+                total_fail += 1;
+                continue;
+            }
+        };
+        let outcome = lava_test::run_case_against(case, &ctx);
+        if outcome.ok() {
+            let _ = writeln!(
+                out,
+                "  ✓ {} — {}/{} assertions passed",
+                outcome.name,
+                outcome.passed,
+                outcome.passed + outcome.failures.len()
+            );
+            total_pass += 1;
+        } else {
+            let _ = writeln!(
+                err,
+                "  ✗ {} — {} failure(s):",
+                outcome.name,
+                outcome.failures.len()
+            );
+            for f in &outcome.failures {
+                let pointer = f.pointer.as_deref().unwrap_or("-");
+                let _ = writeln!(err, "      • {} [{}]: {}", f.assertion, pointer, f.message);
+            }
+            total_fail += 1;
+        }
+    }
+
+    let _ = writeln!(out, "lava test: {total_pass} passed, {total_fail} failed");
+    if total_fail == 0 {
+        0
+    } else {
+        1
+    }
+}
+
+fn render_case(
+    arch_name: &str,
+    case_bindings: &indexmap::IndexMap<String, String>,
+    cli_bindings: &indexmap::IndexMap<String, String>,
+    err: &mut dyn Write,
+) -> Option<magma_lava::LavaPlan> {
+    let path = bundled_source_path(arch_name);
+    if !path.exists() {
+        let _ = writeln!(
+            err,
+            "  ✗ {arch_name} — bundled architecture not found at {}",
+            path.display()
+        );
+        return None;
+    }
+    let mut bindings: IndexMap<String, magma_lava::Binding> = IndexMap::new();
+    for (k, v) in case_bindings {
+        bindings.insert(k.clone(), magma_lava::Binding::Scalar(v.clone()));
+    }
+    for (k, v) in cli_bindings {
+        bindings.insert(k.clone(), magma_lava::Binding::Scalar(v.clone()));
+    }
+    let plan_args = LavaPlanArgs {
+        path,
+        bindings,
+        gate_with: None,
+        runtime_kind: None,
+    };
+    match synthesize(&plan_args) {
+        Ok(p) => Some(p),
+        Err(e) => {
+            let _ = writeln!(err, "  ✗ {arch_name} — render: {e}");
+            None
+        }
+    }
+}
+
+fn parse_kv(items: &[String]) -> indexmap::IndexMap<String, String> {
+    let mut out: indexmap::IndexMap<String, String> = indexmap::IndexMap::new();
+    for kv in items {
+        if let Some((k, v)) = kv.split_once('=') {
+            out.insert(k.to_string(), v.to_string());
+        }
+    }
+    out
 }
 
 fn cmd_graph(args: &GraphArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {

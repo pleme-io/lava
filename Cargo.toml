@@ -30,3 +30,4 @@ magma-lava = { git = "https://github.com/pleme-io/magma-lava", branch = "main" }
 lava-architectures = { git = "https://github.com/pleme-io/lava-architectures", branch = "main" }
 lava-eval = { git = "https://github.com/pleme-io/lava-eval", branch = "main" }
 lava-schema = { git = "https://github.com/pleme-io/lava-schema", branch = "main" }
+lava-test = { git = "https://github.com/pleme-io/lava-test", branch = "main" }

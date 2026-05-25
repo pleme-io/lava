@@ -258,6 +258,54 @@ fn graph_unknown_target_exits_nonzero() {
 }
 
 #[test]
+fn test_runs_typed_assertions_against_bundled_architecture() {
+    // Write a small .test.tlisp pointing at aws-vpc-network.
+    let dir = tmpdir();
+    let path = dir.join("vpc.test.tlisp");
+    let body = r#"
+        (deflava-test aws-vpc-network/smoke
+          :architecture aws-vpc-network
+          :assertions ((resource-exists aws-vpc "main-vpc")
+                       (attribute-equals aws-vpc "main-vpc" :cidr-block "10.0.0.0/16")
+                       (resource-count aws-subnet 6)
+                       (ref-valid)))
+    "#;
+    std::fs::write(&path, body).unwrap();
+    let (code, out, _err) = run(&["test", path.to_str().unwrap()]);
+    assert_eq!(code, 0, "test should pass");
+    assert!(out.contains("aws-vpc-network/smoke"));
+    assert!(out.contains("4/4 assertions passed"));
+    assert!(out.contains("1 passed, 0 failed"));
+}
+
+#[test]
+fn test_reports_typed_assertion_failures_nonzero() {
+    let dir = tmpdir();
+    let path = dir.join("vpc.test.tlisp");
+    let body = r#"
+        (deflava-test aws-vpc-network/wrong
+          :architecture aws-vpc-network
+          :assertions ((resource-exists aws-vpc "no-such-vpc")
+                       (resource-count aws-subnet 99)))
+    "#;
+    std::fs::write(&path, body).unwrap();
+    let (code, _out, err) = run(&["test", path.to_str().unwrap()]);
+    assert_ne!(code, 0);
+    assert!(err.contains("aws-vpc-network/wrong"));
+    assert!(err.contains("failure"));
+}
+
+#[test]
+fn test_empty_file_exits_nonzero() {
+    let dir = tmpdir();
+    let path = dir.join("empty.test.tlisp");
+    std::fs::write(&path, "").unwrap();
+    let (code, _out, err) = run(&["test", path.to_str().unwrap()]);
+    assert_ne!(code, 0);
+    assert!(err.contains("no (deflava-test"));
+}
+
+#[test]
 fn no_args_emits_help_with_nonzero_exit() {
     let (code, _out, err) = run(&[]);
     assert_ne!(code, 0);

@@ -149,6 +149,7 @@ dependencies = [
  "lava-architectures",
  "lava-eval",
  "lava-schema",
+ "lava-test",
  "magma-lava",
  "serde",
  "serde_json",
@@ -244,6 +245,19 @@ dependencies = [
  "indexmap",
  "lava-types",
  "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "lava-test"
+version = "0.1.0"
+source = "git+https://github.com/pleme-io/lava-test?branch=main#cbedb53c0664a1441c78872e2d4fefaa5228a4f9"
+dependencies = [
+ "indexmap",
+ "lava-core",
+ "lava-eval",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 
