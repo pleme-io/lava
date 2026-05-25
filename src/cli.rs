@@ -100,6 +100,20 @@ pub enum LsTarget {
 pub enum ShowTarget {
     /// Print the typed Interface for one architecture (JSON).
     Interface { name: String },
+    /// List every resource the architecture renders: `<type_id>.<name>`.
+    Resources {
+        name: String,
+        /// Optional bindings (so resource names that interpolate
+        /// `{name}` show the resolved value).
+        #[arg(long = "binding", value_name = "KEY=VALUE")]
+        bindings: Vec<String>,
+    },
+    /// Show the architecture's declared output slot (the `:result`
+    /// clause): which keys downstream stacks can read.
+    Outputs { name: String },
+    /// Quick stats — resource counts grouped by type, plus the
+    /// architecture's declared interface name (if any).
+    Stats { name: String },
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
@@ -271,7 +285,149 @@ fn cmd_show(target: &ShowTarget, out: &mut dyn Write, err: &mut dyn Write) -> i3
                 1
             }
         },
+        ShowTarget::Resources { name, bindings } => {
+            let Some(plan) = render_bundled(name, bindings, &[], err) else {
+                return 1;
+            };
+            let mut rows: Vec<(String, String)> = Vec::new();
+            if let Some(by_type) = plan.terraform_json["resource"].as_object() {
+                for (type_id, by_name) in by_type {
+                    if let Some(by_name_map) = by_name.as_object() {
+                        for n in by_name_map.keys() {
+                            rows.push((type_id.clone(), n.clone()));
+                        }
+                    }
+                }
+            }
+            rows.sort();
+            for (type_id, n) in rows {
+                let _ = writeln!(out, "{type_id}.{n}");
+            }
+            0
+        }
+        ShowTarget::Outputs { name } => {
+            // Outputs live in the architecture's :result clause —
+            // re-read the .tlisp source and pull them out by inspecting
+            // the parsed s-expressions. We don't need to evaluate the
+            // architecture, just look at the :result form.
+            let src_path = bundled_source_path(name);
+            let src = match std::fs::read_to_string(&src_path) {
+                Ok(s) => s,
+                Err(e) => {
+                    let _ = writeln!(
+                        err,
+                        "lava show outputs: can't read {}: {e}",
+                        src_path.display()
+                    );
+                    return 1;
+                }
+            };
+            let forms = match lava_eval::parse_all(&src) {
+                Ok(f) => f,
+                Err(e) => {
+                    let _ = writeln!(err, "lava show outputs: parse: {e}");
+                    return 1;
+                }
+            };
+            for form in &forms {
+                if let Some(xs) = form.as_list() {
+                    if xs.first().and_then(lava_eval::Sx::as_sym)
+                        == Some("deflava-architecture")
+                    {
+                        emit_result_slot(xs, out);
+                        return 0;
+                    }
+                }
+            }
+            let _ = writeln!(err, "lava show outputs: no deflava-architecture form found");
+            1
+        }
+        ShowTarget::Stats { name } => {
+            let Some(plan) = render_bundled(name, &[], &[], err) else {
+                return 1;
+            };
+            let mut counts: indexmap::IndexMap<String, usize> = indexmap::IndexMap::new();
+            if let Some(by_type) = plan.terraform_json["resource"].as_object() {
+                for (type_id, by_name) in by_type {
+                    let n = by_name.as_object().map_or(0, serde_json::Map::len);
+                    counts.insert(type_id.clone(), n);
+                }
+            }
+            counts.sort_keys();
+            let total: usize = counts.values().sum();
+            let _ = writeln!(out, "architecture\t{name}");
+            let _ = writeln!(out, "interface\t{}", interface_for(name).map(|i| i.name).unwrap_or_else(|| "(none)".into()));
+            let _ = writeln!(out, "runtime\t{}", plan.runtime_kind);
+            let _ = writeln!(out, "total-resources\t{total}");
+            for (type_id, n) in counts {
+                let _ = writeln!(out, "  {type_id}\t{n}");
+            }
+            0
+        }
     }
+}
+
+fn bundled_source_path(name: &str) -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(|p| p.join("lava-architectures").join("architectures").join(format!("{name}.tlisp")))
+        .unwrap_or_else(|| std::path::PathBuf::from(format!("{name}.tlisp")))
+}
+
+fn render_bundled(
+    name: &str,
+    bindings: &[String],
+    list_bindings: &[String],
+    err: &mut dyn Write,
+) -> Option<magma_lava::LavaPlan> {
+    let path = bundled_source_path(name);
+    if !path.exists() {
+        let _ = writeln!(
+            err,
+            "lava: bundled architecture `{name}` not found at {}",
+            path.display()
+        );
+        return None;
+    }
+    let plan_args = LavaPlanArgs {
+        path,
+        bindings: parse_bindings(bindings, list_bindings),
+        gate_with: None,
+        runtime_kind: None,
+    };
+    match synthesize(&plan_args) {
+        Ok(p) => Some(p),
+        Err(e) => {
+            let _ = writeln!(err, "lava: render `{name}` failed: {e}");
+            None
+        }
+    }
+}
+
+fn emit_result_slot(arch_xs: &[lava_eval::Sx], out: &mut dyn Write) {
+    use lava_eval::Sx;
+    // Walk :result keyword to grab its body.
+    let mut i = 2;
+    while i + 1 < arch_xs.len() {
+        if arch_xs[i].as_kw() == Some("result") {
+            if let Sx::List(items) = &arch_xs[i + 1] {
+                // First atom is the result-name; the rest are :key value pairs.
+                if let Some(result_name) = items.first().and_then(Sx::as_sym) {
+                    let _ = writeln!(out, "result\t{result_name}");
+                }
+                let mut j = 1;
+                while j + 1 < items.len() {
+                    if let Some(k) = items[j].as_kw() {
+                        let _ = writeln!(out, "  :{k}");
+                    }
+                    j += 2;
+                }
+            }
+            return;
+        }
+        i += 2;
+    }
+    let _ = writeln!(out, "(no :result clause)");
 }
 
 fn emit_plan(

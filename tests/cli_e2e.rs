@@ -180,6 +180,57 @@ fn validate_with_unknown_gate_exits_nonzero() {
 }
 
 #[test]
+fn show_resources_lists_every_rendered_resource() {
+    let (code, out, _err) = run(&["show", "resources", "aws-vpc-network"]);
+    assert_eq!(code, 0);
+    // VPC + IGW + subnets + NAT + EIP + SG.
+    assert!(out.contains("aws_vpc.main-vpc"));
+    assert!(out.contains("aws_internet_gateway.main-igw"));
+    assert!(out.contains("aws_nat_gateway.main-nat"));
+    assert!(out.contains("aws_security_group.main-default-sg"));
+}
+
+#[test]
+fn show_resources_threads_bindings_into_rendered_names() {
+    let (code, out, _err) = run(&[
+        "show",
+        "resources",
+        "aws-vpc-network",
+        "--binding",
+        "name=preview",
+    ]);
+    assert_eq!(code, 0);
+    assert!(out.contains("aws_vpc.preview-vpc"));
+    assert!(out.contains("aws_internet_gateway.preview-igw"));
+}
+
+#[test]
+fn show_outputs_lists_result_slot_keys() {
+    let (code, out, _err) = run(&["show", "outputs", "aws-vpc-network"]);
+    assert_eq!(code, 0);
+    // The :result clause declares network + a few :keys.
+    assert!(out.contains("result\tnetwork"));
+    assert!(out.contains(":vpc-id"));
+}
+
+#[test]
+fn show_stats_reports_typed_resource_breakdown() {
+    let (code, out, _err) = run(&["show", "stats", "aws-vpc-network"]);
+    assert_eq!(code, 0);
+    assert!(out.contains("architecture\taws-vpc-network"));
+    assert!(out.contains("total-resources"));
+    assert!(out.contains("aws_subnet"));
+    assert!(out.contains("interface\taws-vpc-network"));
+}
+
+#[test]
+fn show_resources_for_unknown_architecture_exits_nonzero() {
+    let (code, _out, err) = run(&["show", "resources", "no-such-arch"]);
+    assert_ne!(code, 0);
+    assert!(err.contains("not found"));
+}
+
+#[test]
 fn no_args_emits_help_with_nonzero_exit() {
     let (code, _out, err) = run(&[]);
     assert_ne!(code, 0);
