@@ -352,6 +352,67 @@ fn plan_engine_with_invalid_tofu_binary_surfaces_typed_error() {
 }
 
 #[test]
+fn new_architecture_scaffolds_paired_interface_plus_architecture() {
+    let dir = tmpdir();
+    let (code, _out, _err) = run(&[
+        "new",
+        "architecture",
+        "my-thing",
+        "--out",
+        dir.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0);
+    let body = std::fs::read_to_string(dir.join("my-thing.tlisp")).unwrap();
+    assert!(body.contains("deflava-interface my-thing"));
+    assert!(body.contains("deflava-architecture my-thing"));
+}
+
+#[test]
+fn new_test_scaffolds_test_dot_tlisp_with_ref_valid() {
+    let dir = tmpdir();
+    let (code, _out, _err) = run(&[
+        "new",
+        "test",
+        "my-test",
+        "--out",
+        dir.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0);
+    let body = std::fs::read_to_string(dir.join("my-test.test.tlisp")).unwrap();
+    assert!(body.contains("deflava-test my-test/default"));
+    assert!(body.contains("ref-valid"));
+}
+
+#[test]
+fn new_spec_scaffolds_scenarios_form() {
+    let dir = tmpdir();
+    let (code, _out, _err) = run(&["new", "spec", "my-spec", "--out", dir.to_str().unwrap()]);
+    assert_eq!(code, 0);
+    let body = std::fs::read_to_string(dir.join("my-spec.tlisp")).unwrap();
+    assert!(body.contains("deflava-spec my-spec"));
+    assert!(body.contains(":scenarios"));
+}
+
+#[test]
+fn new_refuses_to_overwrite_unless_force() {
+    let dir = tmpdir();
+    let (code, _out, _err) = run(&["new", "interface", "x", "--out", dir.to_str().unwrap()]);
+    assert_eq!(code, 0);
+    let (code2, _out, err) = run(&["new", "interface", "x", "--out", dir.to_str().unwrap()]);
+    assert_ne!(code2, 0);
+    assert!(err.contains("already exists"));
+    let (code3, _out, _err) = run(&[
+        "new",
+        "interface",
+        "x",
+        "--out",
+        dir.to_str().unwrap(),
+        "--force",
+    ]);
+    assert_eq!(code3, 0);
+}
+
+#[test]
 fn no_args_emits_help_with_nonzero_exit() {
     let (code, _out, err) = run(&[]);
     assert_ne!(code, 0);

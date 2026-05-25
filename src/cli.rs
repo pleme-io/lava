@@ -50,6 +50,40 @@ pub enum Command {
     Destroy(EngineArgs),
     /// Render + `<engine> plan` the resulting terraform.json.
     PlanEngine(EngineArgs),
+    /// Scaffold a new typed component (.tlisp source) from a template.
+    New(NewArgs),
+}
+
+#[derive(Parser, Debug)]
+pub struct NewArgs {
+    /// Kind of component to scaffold.
+    pub kind: NewKind,
+    /// Name of the component (kebab-case).
+    pub name: String,
+    /// Output directory. Default: current directory.
+    #[arg(long, default_value = ".")]
+    pub out: std::path::PathBuf,
+    /// Overwrite if the target file already exists.
+    #[arg(long, default_value_t = false)]
+    pub force: bool,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum NewKind {
+    Architecture,
+    Interface,
+    Test,
+    Spec,
+    Module,
+}
+
+impl NewKind {
+    fn file_suffix(self) -> &'static str {
+        match self {
+            Self::Test => ".test.tlisp",
+            _ => ".tlisp",
+        }
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -286,6 +320,104 @@ where
         Command::Apply(args) => cmd_engine(&args, EngineVerb::Apply, out, err),
         Command::Destroy(args) => cmd_engine(&args, EngineVerb::Destroy, out, err),
         Command::PlanEngine(args) => cmd_engine(&args, EngineVerb::Plan, out, err),
+        Command::New(args) => cmd_new(&args, out, err),
+    }
+}
+
+fn cmd_new(args: &NewArgs, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    if let Err(e) = std::fs::create_dir_all(&args.out) {
+        let _ = writeln!(err, "lava new: cannot create {}: {e}", args.out.display());
+        return 1;
+    }
+    let file = args
+        .out
+        .join(format!("{}{}", args.name, args.kind.file_suffix()));
+    if file.exists() && !args.force {
+        let _ = writeln!(
+            err,
+            "lava new: {} already exists (pass --force to overwrite)",
+            file.display()
+        );
+        return 1;
+    }
+    let body = scaffold_for(args.kind, &args.name);
+    if let Err(e) = std::fs::write(&file, &body) {
+        let _ = writeln!(err, "lava new: write {} failed: {e}", file.display());
+        return 1;
+    }
+    let _ = writeln!(out, "wrote {} bytes → {}", body.len(), file.display());
+    0
+}
+
+fn scaffold_for(kind: NewKind, name: &str) -> String {
+    // Typed scaffolds — no format!() of tlisp syntax: each writer goes
+    // through write!()/push_str of literal template strings + the
+    // single dynamic value `name`. The template is the typed surface.
+    match kind {
+        NewKind::Architecture => {
+            let mut s = String::new();
+            s.push_str(";; ");
+            s.push_str(name);
+            s.push_str(".tlisp — scaffolded by `lava new architecture`\n\n");
+            s.push_str("(deflava-interface ");
+            s.push_str(name);
+            s.push_str("\n  :doc \"TODO — describe ");
+            s.push_str(name);
+            s.push_str("\"\n  :inputs ()\n  :outputs ())\n\n");
+            s.push_str("(deflava-architecture ");
+            s.push_str(name);
+            s.push_str("\n  :inputs ()\n  :resources ())\n");
+            s
+        }
+        NewKind::Interface => {
+            let mut s = String::new();
+            s.push_str(";; ");
+            s.push_str(name);
+            s.push_str(".tlisp — scaffolded by `lava new interface`\n\n");
+            s.push_str("(deflava-interface ");
+            s.push_str(name);
+            s.push_str("\n  :doc \"TODO — typed contract for ");
+            s.push_str(name);
+            s.push_str("\"\n  :inputs ()\n  :outputs ())\n");
+            s
+        }
+        NewKind::Test => {
+            let mut s = String::new();
+            s.push_str(";; ");
+            s.push_str(name);
+            s.push_str(".test.tlisp — scaffolded by `lava new test`\n\n");
+            s.push_str("(deflava-test ");
+            s.push_str(name);
+            s.push_str("/default\n  :architecture ");
+            s.push_str(name);
+            s.push_str("\n  :assertions ((ref-valid)))\n");
+            s
+        }
+        NewKind::Spec => {
+            let mut s = String::new();
+            s.push_str(";; ");
+            s.push_str(name);
+            s.push_str(".tlisp — scaffolded by `lava new spec`\n\n");
+            s.push_str("(deflava-spec ");
+            s.push_str(name);
+            s.push_str("\n  :scenarios (\n    (:name \"smoke\"\n     :given (:architecture ");
+            s.push_str(name);
+            s.push_str(")\n     :when  (:bindings ())\n     :then  ((ref-valid)))))\n");
+            s
+        }
+        NewKind::Module => {
+            let mut s = String::new();
+            s.push_str(";; ");
+            s.push_str(name);
+            s.push_str(".tlisp — scaffolded by `lava new module`\n");
+            s.push_str(";; A deflava-module composes typed inputs → typed outputs.\n");
+            s.push_str(";; (Module evaluation arrives with lava-modules; this scaffold\n");
+            s.push_str(";; declares the shape today so authoring can start.)\n\n");
+            s.push_str("(deflava-module ");
+            s.push_str(name);
+            s.push_str("\n  :inputs ()\n  :resources ()\n  :outputs ())\n");
+            s
+        }
     }
 }
 
