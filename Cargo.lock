@@ -267,8 +267,8 @@ dependencies = [
 
 [[package]]
 name = "gen-macros"
-version = "0.1.4"
-source = "git+https://github.com/pleme-io/gen#2684ab51c68dad10b4bc59c685c123925990bc2a"
+version = "0.1.5"
+source = "git+https://github.com/pleme-io/gen#f18830b4ef710ebe44c6d92abf0e020fd6943414"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -277,8 +277,8 @@ dependencies = [
 
 [[package]]
 name = "gen-platform"
-version = "0.1.4"
-source = "git+https://github.com/pleme-io/gen#2684ab51c68dad10b4bc59c685c123925990bc2a"
+version = "0.1.5"
+source = "git+https://github.com/pleme-io/gen#f18830b4ef710ebe44c6d92abf0e020fd6943414"
 dependencies = [
  "gen-macros",
  "gen-types",
@@ -290,8 +290,8 @@ dependencies = [
 
 [[package]]
 name = "gen-types"
-version = "0.1.4"
-source = "git+https://github.com/pleme-io/gen#2684ab51c68dad10b4bc59c685c123925990bc2a"
+version = "0.1.5"
+source = "git+https://github.com/pleme-io/gen#f18830b4ef710ebe44c6d92abf0e020fd6943414"
 dependencies = [
  "blake3",
  "chrono",
@@ -413,7 +413,7 @@ dependencies = [
 
 [[package]]
 name = "lava"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "clap",
  "indexmap",
@@ -442,8 +442,8 @@ dependencies = [
 
 [[package]]
 name = "lava-architectures"
-version = "0.1.13"
-source = "git+https://github.com/pleme-io/lava-architectures?branch=main#6acb442003ffd5d7e18b8fa6b70d8dcdd2cf571b"
+version = "0.1.14"
+source = "git+https://github.com/pleme-io/lava-architectures?branch=main#395702f55d7fc7207b9e6b0b6f07dfea33781478"
 dependencies = [
  "indexmap",
  "lava-arch",
@@ -481,8 +481,8 @@ dependencies = [
 
 [[package]]
 name = "lava-eval"
-version = "0.1.7"
-source = "git+https://github.com/pleme-io/lava-eval?branch=main#82f957de4004c8840e924424a3edbfb81d176e88"
+version = "0.1.8"
+source = "git+https://github.com/pleme-io/lava-eval?branch=main#fc42426088e84f151cab10534ff0f3095982c4c2"
 dependencies = [
  "indexmap",
  "lava-arch",
@@ -522,7 +522,7 @@ dependencies = [
 [[package]]
 name = "lava-test"
 version = "0.1.6"
-source = "git+https://github.com/pleme-io/lava-test?branch=main#4eca2557f1b512f0fb400b73027979b1d3ce8984"
+source = "git+https://github.com/pleme-io/lava-test?branch=main#15e08cbedc612186c7d4c195d930215feaf6dd79"
 dependencies = [
  "indexmap",
  "lava-core",
@@ -575,7 +575,7 @@ dependencies = [
 [[package]]
 name = "magma-lava"
 version = "0.2.3"
-source = "git+https://github.com/pleme-io/magma-lava?branch=main#0741c03aeea6884f7bbbd66b0d1edefc38ed905e"
+source = "git+https://github.com/pleme-io/magma-lava?branch=main#97054986da0788b0d030d8beb0d3526733088949"
 dependencies = [
  "indexmap",
  "lava-architectures",
@@ -606,9 +606,9 @@ dependencies = [
 
 [[package]]
 name = "memchr"
-version = "2.8.0"
+version = "2.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
+checksum = "6b947ae49db0d222b1dbc6b113ce7248a3fc3a6ca21b696717bfc000ba4484d8"
 
 [[package]]
 name = "num-traits"
