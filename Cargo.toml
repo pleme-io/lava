@@ -4,6 +4,12 @@ description = "lava — operator CLI for the lava suite. Renders, validates, and
 edition = "2024"
 license = "MIT"
 name = "lava"
+# The crates.io name `lava` is owned by another publisher (symil, v0.4.9), so
+# this crate can never upload under it. False makes the release a clean skip
+# instead of a 403. Its 36 lava-* siblings are unaffected — those names are
+# free, they simply have not published yet. Rename to `pleme-io-lava` if the
+# CLI should reach the registry.
+publish = false
 readme = "README.md"
 repository = "https://github.com/pleme-io/lava"
 version = "0.1.8"
