@@ -1,12 +1,12 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "10750bf7218a1b92fa5ea5e0e247b5c68e21b281334bea4dd9cb5baaf6b3542e",
+  "cargo_lock_sha256": "92980ff0d1cbf22889e9cb6dcaf4e9922e9149bd9ddaebd0f22f677a8378039c",
   "manifest_sha256": {
-    "Cargo.toml": "3c43123d371353d151adf6778d0821b54bc3e35bcb037673a3379cfce5e6109b"
+    "Cargo.toml": "52ab864daf9b5041c44a857c05f85560dbcf99fb72ec264bdaf09eba073bb675"
   },
   "target_resolves": {
     "base": {
-      "aho-corasick-1.1.4": {
+      "aho-corasick-1.1.5": {
         "runtime_dependencies": [
           {
             "name": "memchr",
@@ -142,11 +142,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "cc-1.4.0": {
+      "cc-1.4.1": {
         "runtime_dependencies": [
           {
             "name": "find_msvc_tools",
-            "package_key": "find-msvc-tools-0.1.9",
+            "package_key": "find-msvc-tools-0.1.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -225,11 +225,11 @@
           "windows-link"
         ]
       },
-      "clap-4.6.4": {
+      "clap-4.6.6": {
         "runtime_dependencies": [
           {
             "name": "clap_builder",
-            "package_key": "clap_builder-4.6.2",
+            "package_key": "clap_builder-4.6.6",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -260,7 +260,7 @@
           "usage"
         ]
       },
-      "clap_builder-4.6.2": {
+      "clap_builder-4.6.6": {
         "runtime_dependencies": [
           {
             "name": "anstream",
@@ -390,7 +390,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "find-msvc-tools-0.1.9": {
+      "find-msvc-tools-0.1.10": {
         "runtime_dependencies": [],
         "build_dependencies": [],
         "features": []
@@ -506,7 +506,7 @@
         "runtime_dependencies": [
           {
             "name": "blake3",
-            "package_key": "blake3-1.8.5",
+            "package_key": "blake3-1.8.6",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -747,11 +747,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "lava-0.1.9": {
+      "lava-0.1.10": {
         "runtime_dependencies": [
           {
             "name": "clap",
-            "package_key": "clap-4.6.4",
+            "package_key": "clap-4.6.6",
             "kind": "normal",
             "features": [
               "derive"
@@ -1821,7 +1821,7 @@
         "runtime_dependencies": [
           {
             "name": "aho_corasick",
-            "package_key": "aho-corasick-1.1.4",
+            "package_key": "aho-corasick-1.1.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -1841,7 +1841,7 @@
           },
           {
             "name": "regex_automata",
-            "package_key": "regex-automata-0.4.16",
+            "package_key": "regex-automata-0.4.18",
             "kind": "normal",
             "features": [
               "alloc",
@@ -1886,11 +1886,11 @@
           "unicode-segment"
         ]
       },
-      "regex-automata-0.4.16": {
+      "regex-automata-0.4.18": {
         "runtime_dependencies": [
           {
             "name": "aho_corasick",
-            "package_key": "aho-corasick-1.1.4",
+            "package_key": "aho-corasick-1.1.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": false,
@@ -2622,7 +2622,7 @@
     "targets": {
       "aarch64-apple-darwin": {
         "overrides": {
-          "blake3-1.8.5": {
+          "blake3-1.8.6": {
             "runtime_dependencies": [
               {
                 "name": "arrayref",
@@ -2668,7 +2668,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.4.0",
+                "package_key": "cc-1.4.1",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -2712,7 +2712,7 @@
       },
       "aarch64-unknown-linux-gnu": {
         "overrides": {
-          "blake3-1.8.5": {
+          "blake3-1.8.6": {
             "runtime_dependencies": [
               {
                 "name": "arrayref",
@@ -2758,7 +2758,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.4.0",
+                "package_key": "cc-1.4.1",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -2783,7 +2783,7 @@
       },
       "aarch64-unknown-linux-musl": {
         "overrides": {
-          "blake3-1.8.5": {
+          "blake3-1.8.6": {
             "runtime_dependencies": [
               {
                 "name": "arrayref",
@@ -2829,7 +2829,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.4.0",
+                "package_key": "cc-1.4.1",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -2854,7 +2854,7 @@
       },
       "x86_64-apple-darwin": {
         "overrides": {
-          "blake3-1.8.5": {
+          "blake3-1.8.6": {
             "runtime_dependencies": [
               {
                 "name": "arrayref",
@@ -2910,7 +2910,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.4.0",
+                "package_key": "cc-1.4.1",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -2959,7 +2959,7 @@
       },
       "x86_64-unknown-linux-gnu": {
         "overrides": {
-          "blake3-1.8.5": {
+          "blake3-1.8.6": {
             "runtime_dependencies": [
               {
                 "name": "arrayref",
@@ -3015,7 +3015,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.4.0",
+                "package_key": "cc-1.4.1",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -3045,7 +3045,7 @@
       },
       "x86_64-unknown-linux-musl": {
         "overrides": {
-          "blake3-1.8.5": {
+          "blake3-1.8.6": {
             "runtime_dependencies": [
               {
                 "name": "arrayref",
@@ -3101,7 +3101,7 @@
             "build_dependencies": [
               {
                 "name": "cc",
-                "package_key": "cc-1.4.0",
+                "package_key": "cc-1.4.1",
                 "kind": "build",
                 "features": [],
                 "uses_default_features": true,
@@ -3132,7 +3132,7 @@
     }
   },
   "per_crate": {
-    "aho-corasick-1.1.4": {
+    "aho-corasick-1.1.5": {
       "edition": "2021"
     },
     "anstream-1.0.0": {
@@ -3156,12 +3156,12 @@
     "autocfg-1.5.1": {
       "edition": "2015"
     },
-    "blake3-1.8.5": {
+    "blake3-1.8.6": {
       "edition": "2024",
       "build_script": "build.rs"
     },
-    "cc-1.4.0": {
-      "edition": "2018"
+    "cc-1.4.1": {
+      "edition": "2021"
     },
     "cfg-if-1.0.4": {
       "edition": "2018"
@@ -3169,7 +3169,7 @@
     "chrono-0.4.45": {
       "edition": "2021"
     },
-    "clap-4.6.4": {
+    "clap-4.6.6": {
       "edition": "2024",
       "binaries": [
         {
@@ -3178,7 +3178,7 @@
         }
       ]
     },
-    "clap_builder-4.6.2": {
+    "clap_builder-4.6.6": {
       "edition": "2024"
     },
     "clap_derive-4.6.4": {
@@ -3206,8 +3206,8 @@
     "equivalent-1.0.2": {
       "edition": "2015"
     },
-    "find-msvc-tools-0.1.9": {
-      "edition": "2018"
+    "find-msvc-tools-0.1.10": {
+      "edition": "2021"
     },
     "gen-macros-0.1.34": {
       "edition": "2024",
@@ -3244,7 +3244,7 @@
     "itoa-1.0.18": {
       "edition": "2021"
     },
-    "lava-0.1.9": {
+    "lava-0.1.10": {
       "edition": "2024",
       "lib_target": {
         "name": "lava",
@@ -3321,7 +3321,7 @@
     "regex-1.13.1": {
       "edition": "2021"
     },
-    "regex-automata-0.4.16": {
+    "regex-automata-0.4.18": {
       "edition": "2021"
     },
     "regex-syntax-0.8.11": {
