@@ -40,8 +40,8 @@ serde_json = "1"
 serde_yaml = "0.9"
 indexmap = { version = "2", features = ["serde"] }
 thiserror = "2"
-magma-lava = { git = "https://github.com/pleme-io/magma-lava", branch = "main" }
-lava-architectures = { git = "https://github.com/pleme-io/lava-architectures", branch = "main" }
-lava-eval = { git = "https://github.com/pleme-io/lava-eval", branch = "main" }
-lava-schema = { git = "https://github.com/pleme-io/lava-schema", branch = "main" }
-lava-test = { git = "https://github.com/pleme-io/lava-test", branch = "main" }
+magma-lava = "0.2.7"
+lava-architectures = "0.1.16"
+lava-eval = "0.1.10"
+lava-schema = "0.1.7"
+lava-test = "0.1.9"

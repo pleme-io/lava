@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "9627db7d9048c241c86fbba11b29f11c2e21b393c55c86590b8d15a5d13a6568",
+  "cargo_lock_sha256": "10750bf7218a1b92fa5ea5e0e247b5c68e21b281334bea4dd9cb5baaf6b3542e",
   "manifest_sha256": {
-    "Cargo.toml": "924eebb46f9d1c871b20a585ad3ed66e261799dab5acc1a20e72574577dd0e81"
+    "Cargo.toml": "3c43123d371353d151adf6778d0821b54bc3e35bcb037673a3379cfce5e6109b"
   },
   "target_resolves": {
     "base": {
@@ -395,7 +395,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-macros-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9": {
+      "gen-macros-0.1.34": {
         "runtime_dependencies": [
           {
             "name": "proc_macro2",
@@ -434,11 +434,11 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-platform-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9": {
+      "gen-platform-0.1.34": {
         "runtime_dependencies": [
           {
             "name": "gen_macros",
-            "package_key": "gen-macros-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9",
+            "package_key": "gen-macros-0.1.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -448,7 +448,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9",
+            "package_key": "gen-types-0.1.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -502,7 +502,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "gen-types-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9": {
+      "gen-types-0.1.34": {
         "runtime_dependencies": [
           {
             "name": "blake3",
@@ -775,7 +775,7 @@
           },
           {
             "name": "lava_architectures",
-            "package_key": "lava-architectures-0.1.15-92ea7b81cf0a73f6833fc1c21b6a93b6375c29d6",
+            "package_key": "lava-architectures-0.1.16",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -785,7 +785,7 @@
           },
           {
             "name": "lava_eval",
-            "package_key": "lava-eval-0.1.9-688e1fccd58329e0d5cb3e91ecca934359abd2b1",
+            "package_key": "lava-eval-0.1.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -795,7 +795,7 @@
           },
           {
             "name": "lava_schema",
-            "package_key": "lava-schema-0.1.6-d0dedd7bce1f87f5069add7d5edcc5e56b9d787d",
+            "package_key": "lava-schema-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -805,7 +805,7 @@
           },
           {
             "name": "lava_test",
-            "package_key": "lava-test-0.1.8-05bddd8aed3c59f1503ea187655d6bd3496f0fbc",
+            "package_key": "lava-test-0.1.9",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -815,7 +815,7 @@
           },
           {
             "name": "magma_lava",
-            "package_key": "magma-lava-0.2.5-ed14e8e0e1ee418b196e23fc207b89d681ad6cb5",
+            "package_key": "magma-lava-0.2.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -871,7 +871,7 @@
           "default"
         ]
       },
-      "lava-arch-0.1.5-548d3c764a451b627bcf9cb1f4be4c4fdd0b2f2d": {
+      "lava-arch-0.1.6": {
         "runtime_dependencies": [
           {
             "name": "indexmap",
@@ -887,7 +887,7 @@
           },
           {
             "name": "lava_core",
-            "package_key": "lava-core-0.1.6-610f5231d47cfaddad053b4c351ce6ef663002df",
+            "package_key": "lava-core-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -931,7 +931,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "lava-architectures-0.1.15-92ea7b81cf0a73f6833fc1c21b6a93b6375c29d6": {
+      "lava-architectures-0.1.16": {
         "runtime_dependencies": [
           {
             "name": "indexmap",
@@ -947,7 +947,7 @@
           },
           {
             "name": "lava_arch",
-            "package_key": "lava-arch-0.1.5-548d3c764a451b627bcf9cb1f4be4c4fdd0b2f2d",
+            "package_key": "lava-arch-0.1.6",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -957,7 +957,7 @@
           },
           {
             "name": "lava_contracts",
-            "package_key": "lava-contracts-0.1.4-8aa875b04e691f13d4988cdd582e3314999c2f91",
+            "package_key": "lava-contracts-0.1.5",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -967,7 +967,7 @@
           },
           {
             "name": "lava_core",
-            "package_key": "lava-core-0.1.6-610f5231d47cfaddad053b4c351ce6ef663002df",
+            "package_key": "lava-core-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -977,7 +977,7 @@
           },
           {
             "name": "lava_eval",
-            "package_key": "lava-eval-0.1.9-688e1fccd58329e0d5cb3e91ecca934359abd2b1",
+            "package_key": "lava-eval-0.1.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -987,7 +987,7 @@
           },
           {
             "name": "lava_schema",
-            "package_key": "lava-schema-0.1.6-d0dedd7bce1f87f5069add7d5edcc5e56b9d787d",
+            "package_key": "lava-schema-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -997,7 +997,7 @@
           },
           {
             "name": "lava_types",
-            "package_key": "lava-types-0.1.2-5919002fc907fdb0c2c348be5e12ffa08e510430",
+            "package_key": "lava-types-0.1.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1041,7 +1041,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "lava-contracts-0.1.4-8aa875b04e691f13d4988cdd582e3314999c2f91": {
+      "lava-contracts-0.1.5": {
         "runtime_dependencies": [
           {
             "name": "indexmap",
@@ -1057,7 +1057,7 @@
           },
           {
             "name": "lava_core",
-            "package_key": "lava-core-0.1.6-610f5231d47cfaddad053b4c351ce6ef663002df",
+            "package_key": "lava-core-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1081,7 +1081,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "lava-core-0.1.6-610f5231d47cfaddad053b4c351ce6ef663002df": {
+      "lava-core-0.1.7": {
         "runtime_dependencies": [
           {
             "name": "indexmap",
@@ -1141,7 +1141,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "lava-eval-0.1.9-688e1fccd58329e0d5cb3e91ecca934359abd2b1": {
+      "lava-eval-0.1.10": {
         "runtime_dependencies": [
           {
             "name": "indexmap",
@@ -1157,7 +1157,7 @@
           },
           {
             "name": "lava_arch",
-            "package_key": "lava-arch-0.1.5-548d3c764a451b627bcf9cb1f4be4c4fdd0b2f2d",
+            "package_key": "lava-arch-0.1.6",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1167,7 +1167,7 @@
           },
           {
             "name": "lava_core",
-            "package_key": "lava-core-0.1.6-610f5231d47cfaddad053b4c351ce6ef663002df",
+            "package_key": "lava-core-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1177,7 +1177,7 @@
           },
           {
             "name": "lava_schema",
-            "package_key": "lava-schema-0.1.6-d0dedd7bce1f87f5069add7d5edcc5e56b9d787d",
+            "package_key": "lava-schema-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1187,7 +1187,7 @@
           },
           {
             "name": "lava_types",
-            "package_key": "lava-types-0.1.2-5919002fc907fdb0c2c348be5e12ffa08e510430",
+            "package_key": "lava-types-0.1.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1231,7 +1231,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "lava-runtime-0.1.7-7266c981059d88988a858fce1e2b44c431df7067": {
+      "lava-runtime-0.1.8": {
         "runtime_dependencies": [
           {
             "name": "indexmap",
@@ -1247,7 +1247,7 @@
           },
           {
             "name": "lava_core",
-            "package_key": "lava-core-0.1.6-610f5231d47cfaddad053b4c351ce6ef663002df",
+            "package_key": "lava-core-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1257,7 +1257,7 @@
           },
           {
             "name": "lava_eval",
-            "package_key": "lava-eval-0.1.9-688e1fccd58329e0d5cb3e91ecca934359abd2b1",
+            "package_key": "lava-eval-0.1.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1267,7 +1267,7 @@
           },
           {
             "name": "lava_schema",
-            "package_key": "lava-schema-0.1.6-d0dedd7bce1f87f5069add7d5edcc5e56b9d787d",
+            "package_key": "lava-schema-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1311,7 +1311,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "lava-schema-0.1.6-d0dedd7bce1f87f5069add7d5edcc5e56b9d787d": {
+      "lava-schema-0.1.7": {
         "runtime_dependencies": [
           {
             "name": "indexmap",
@@ -1327,7 +1327,7 @@
           },
           {
             "name": "lava_types",
-            "package_key": "lava-types-0.1.2-5919002fc907fdb0c2c348be5e12ffa08e510430",
+            "package_key": "lava-types-0.1.2",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1361,7 +1361,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "lava-test-0.1.8-05bddd8aed3c59f1503ea187655d6bd3496f0fbc": {
+      "lava-test-0.1.9": {
         "runtime_dependencies": [
           {
             "name": "indexmap",
@@ -1377,7 +1377,7 @@
           },
           {
             "name": "lava_core",
-            "package_key": "lava-core-0.1.6-610f5231d47cfaddad053b4c351ce6ef663002df",
+            "package_key": "lava-core-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1387,7 +1387,7 @@
           },
           {
             "name": "lava_eval",
-            "package_key": "lava-eval-0.1.9-688e1fccd58329e0d5cb3e91ecca934359abd2b1",
+            "package_key": "lava-eval-0.1.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1441,7 +1441,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "lava-types-0.1.2-5919002fc907fdb0c2c348be5e12ffa08e510430": {
+      "lava-types-0.1.2": {
         "runtime_dependencies": [
           {
             "name": "serde",
@@ -1477,11 +1477,11 @@
           "std"
         ]
       },
-      "magma-config-0.1.10-857c1ee70973772fdfcd75e7a5502110d0ab97cb": {
+      "magma-config-0.1.20": {
         "runtime_dependencies": [
           {
             "name": "magma_types",
-            "package_key": "magma-types-0.1.10-857c1ee70973772fdfcd75e7a5502110d0ab97cb",
+            "package_key": "magma-types-0.1.20",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1535,7 +1535,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "magma-lava-0.2.5-ed14e8e0e1ee418b196e23fc207b89d681ad6cb5": {
+      "magma-lava-0.2.7": {
         "runtime_dependencies": [
           {
             "name": "indexmap",
@@ -1551,7 +1551,7 @@
           },
           {
             "name": "lava_architectures",
-            "package_key": "lava-architectures-0.1.15-92ea7b81cf0a73f6833fc1c21b6a93b6375c29d6",
+            "package_key": "lava-architectures-0.1.16",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1561,7 +1561,7 @@
           },
           {
             "name": "lava_core",
-            "package_key": "lava-core-0.1.6-610f5231d47cfaddad053b4c351ce6ef663002df",
+            "package_key": "lava-core-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1571,7 +1571,7 @@
           },
           {
             "name": "lava_eval",
-            "package_key": "lava-eval-0.1.9-688e1fccd58329e0d5cb3e91ecca934359abd2b1",
+            "package_key": "lava-eval-0.1.10",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1581,7 +1581,7 @@
           },
           {
             "name": "lava_runtime",
-            "package_key": "lava-runtime-0.1.7-7266c981059d88988a858fce1e2b44c431df7067",
+            "package_key": "lava-runtime-0.1.8",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1591,7 +1591,7 @@
           },
           {
             "name": "lava_schema",
-            "package_key": "lava-schema-0.1.6-d0dedd7bce1f87f5069add7d5edcc5e56b9d787d",
+            "package_key": "lava-schema-0.1.7",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1601,7 +1601,7 @@
           },
           {
             "name": "magma_config",
-            "package_key": "magma-config-0.1.10-857c1ee70973772fdfcd75e7a5502110d0ab97cb",
+            "package_key": "magma-config-0.1.20",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1645,7 +1645,7 @@
         "build_dependencies": [],
         "features": []
       },
-      "magma-types-0.1.10-857c1ee70973772fdfcd75e7a5502110d0ab97cb": {
+      "magma-types-0.1.20": {
         "runtime_dependencies": [
           {
             "name": "chrono",
@@ -1661,7 +1661,7 @@
           },
           {
             "name": "gen_platform",
-            "package_key": "gen-platform-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9",
+            "package_key": "gen-platform-0.1.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -1671,7 +1671,7 @@
           },
           {
             "name": "gen_types",
-            "package_key": "gen-types-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9",
+            "package_key": "gen-types-0.1.34",
             "kind": "normal",
             "features": [],
             "uses_default_features": true,
@@ -3209,14 +3209,14 @@
     "find-msvc-tools-0.1.9": {
       "edition": "2018"
     },
-    "gen-macros-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9": {
+    "gen-macros-0.1.34": {
       "edition": "2024",
       "proc_macro": true
     },
-    "gen-platform-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9": {
+    "gen-platform-0.1.34": {
       "edition": "2024"
     },
-    "gen-types-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9": {
+    "gen-types-0.1.34": {
       "edition": "2024"
     },
     "getrandom-0.4.3": {
@@ -3257,44 +3257,44 @@
         }
       ]
     },
-    "lava-arch-0.1.5-548d3c764a451b627bcf9cb1f4be4c4fdd0b2f2d": {
+    "lava-arch-0.1.6": {
       "edition": "2024"
     },
-    "lava-architectures-0.1.15-92ea7b81cf0a73f6833fc1c21b6a93b6375c29d6": {
+    "lava-architectures-0.1.16": {
       "edition": "2024"
     },
-    "lava-contracts-0.1.4-8aa875b04e691f13d4988cdd582e3314999c2f91": {
+    "lava-contracts-0.1.5": {
       "edition": "2024"
     },
-    "lava-core-0.1.6-610f5231d47cfaddad053b4c351ce6ef663002df": {
+    "lava-core-0.1.7": {
       "edition": "2024"
     },
-    "lava-eval-0.1.9-688e1fccd58329e0d5cb3e91ecca934359abd2b1": {
+    "lava-eval-0.1.10": {
       "edition": "2024"
     },
-    "lava-runtime-0.1.7-7266c981059d88988a858fce1e2b44c431df7067": {
+    "lava-runtime-0.1.8": {
       "edition": "2024"
     },
-    "lava-schema-0.1.6-d0dedd7bce1f87f5069add7d5edcc5e56b9d787d": {
+    "lava-schema-0.1.7": {
       "edition": "2024"
     },
-    "lava-test-0.1.8-05bddd8aed3c59f1503ea187655d6bd3496f0fbc": {
+    "lava-test-0.1.9": {
       "edition": "2024"
     },
-    "lava-types-0.1.2-5919002fc907fdb0c2c348be5e12ffa08e510430": {
+    "lava-types-0.1.2": {
       "edition": "2024"
     },
     "libc-0.2.189": {
       "edition": "2021",
       "build_script": "build.rs"
     },
-    "magma-config-0.1.10-857c1ee70973772fdfcd75e7a5502110d0ab97cb": {
+    "magma-config-0.1.20": {
       "edition": "2024"
     },
-    "magma-lava-0.2.5-ed14e8e0e1ee418b196e23fc207b89d681ad6cb5": {
+    "magma-lava-0.2.7": {
       "edition": "2024"
     },
-    "magma-types-0.1.10-857c1ee70973772fdfcd75e7a5502110d0ab97cb": {
+    "magma-types-0.1.20": {
       "edition": "2024"
     },
     "memchr-2.8.3": {
@@ -3421,22 +3421,6 @@
       "build_script": "build.rs"
     }
   },
-  "git_nar_sha256": {
-    "gen-macros-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9": "sha256-GPE/+Jr6MghHHigYM+vLNSfCa6X5P52lsn4JblgnzSM=",
-    "gen-platform-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9": "sha256-GPE/+Jr6MghHHigYM+vLNSfCa6X5P52lsn4JblgnzSM=",
-    "gen-types-0.1.30-52883694820f96fc8822bd9d0dc187e3e95c71f9": "sha256-GPE/+Jr6MghHHigYM+vLNSfCa6X5P52lsn4JblgnzSM=",
-    "lava-arch-0.1.5-548d3c764a451b627bcf9cb1f4be4c4fdd0b2f2d": "sha256-ASpoPsIOBspFEyww8Ij1KoCZ3MwutMfhVSRSfuhDdEE=",
-    "lava-architectures-0.1.15-92ea7b81cf0a73f6833fc1c21b6a93b6375c29d6": "sha256-qYMkzRe+8w7Mm5gJRAWqcJLB4Blqxhg7BXKav+XToSE=",
-    "lava-contracts-0.1.4-8aa875b04e691f13d4988cdd582e3314999c2f91": "sha256-Ys3sslNr2KSOIaC68HckvD5FDlEYbDpUBrxrRg9Fbgg=",
-    "lava-core-0.1.6-610f5231d47cfaddad053b4c351ce6ef663002df": "sha256-IKxgJsK/Ht+aMY4SikIkZRNi6pMKMpMKA503Z8DYObg=",
-    "lava-eval-0.1.9-688e1fccd58329e0d5cb3e91ecca934359abd2b1": "sha256-jmbYcSIb8HInMl6ed3Y7rXVK9HOg4XqA8CU5uHcU6pI=",
-    "lava-runtime-0.1.7-7266c981059d88988a858fce1e2b44c431df7067": "sha256-xo4ceK2NZMN4VOYQdFmNtiqg1rLJvwGgeth98rQ7hU4=",
-    "lava-schema-0.1.6-d0dedd7bce1f87f5069add7d5edcc5e56b9d787d": "sha256-l/VIj3wWUCxezmVZQKX8Z873jKbI+jXRF7qtMhDmUnU=",
-    "lava-test-0.1.8-05bddd8aed3c59f1503ea187655d6bd3496f0fbc": "sha256-XmYKPC2AogqJSsJRuN4+QkFw5PnBJkADUzdr/V2RgIw=",
-    "lava-types-0.1.2-5919002fc907fdb0c2c348be5e12ffa08e510430": "sha256-KxzpOdN3R0PokxfZlMRK0UdA5kgRHlO+NY/fucsMSFk=",
-    "magma-config-0.1.10-857c1ee70973772fdfcd75e7a5502110d0ab97cb": "sha256-yMGrDFPWNZda/yvbOm2JdTKPvVAqn+ScnNA2DIGgBxo=",
-    "magma-lava-0.2.5-ed14e8e0e1ee418b196e23fc207b89d681ad6cb5": "sha256-Dq80wapDwNAS8jhqlKvSjgmSAPsltrr+uPzhnZsRewE=",
-    "magma-types-0.1.10-857c1ee70973772fdfcd75e7a5502110d0ab97cb": "sha256-yMGrDFPWNZda/yvbOm2JdTKPvVAqn+ScnNA2DIGgBxo="
-  },
+  "git_nar_sha256": {},
   "flake_metadata": {}
 }
